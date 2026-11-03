@@ -56,8 +56,12 @@ def collect(start: dt.date, end: dt.date) -> None:
     frames = []
     if env("NAVER_CLIENT_ID"):
         frames.append(naver.datalab(start, end, LAUNCH.keyword_groups))
-        frames.append(naver.blog(" ".join(LAUNCH.keyword_groups["bra"][:1]), "bra", start, end))
-        print("네이버 데이터랩·블로그 수집 완료")
+        items = naver.fetch_items(LAUNCH.keyword_groups["bra"][0], start)
+        frames.append(naver.parse_blog(items, "bra", start, end))
+        topics = naver.parse_topics(items, start, end)
+        if len(topics):
+            topics.to_csv(COLLECTED / "reaction_topics_daily.csv", index=False)
+        print("네이버 데이터랩·블로그(언급·주제) 수집 완료")
     if frames:
         pd.concat(frames, ignore_index=True).to_csv(COLLECTED / "reaction_daily.csv", index=False)
 

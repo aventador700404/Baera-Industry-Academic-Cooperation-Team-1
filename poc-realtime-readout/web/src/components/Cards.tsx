@@ -1,14 +1,19 @@
 import type { Card, Readout } from "../types";
+import { MODULE_LABEL } from "../format";
 import { Prov } from "./bits";
 
+// 그날 판독 → 마케팅이 할 일. 4모듈에 하나씩.
 export function Cards({ cards, data }: { cards: Card[]; data: Readout }) {
   const p = data.meta.provenance_raw;
   return (
-    <section className="cards" aria-label="이번 주 결정">
+    <section className="cards" aria-label="오늘의 판독">
       {cards.map((c) => (
         <article className="card" key={c.key}>
           <div className="top">
-            <h3>{c.title}</h3>
+            <div>
+              <div className="eyebrow">{MODULE_LABEL[c.module]}</div>
+              <h3>{c.title}</h3>
+            </div>
             <span className={`pill ${c.pill.tone}`}>{c.pill.label}</span>
           </div>
           <div className="head">{c.head}</div>

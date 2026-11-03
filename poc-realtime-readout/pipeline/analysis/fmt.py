@@ -22,3 +22,8 @@ def signed(x: float) -> str:
 
 def million_won(x: float) -> str:
     return f"{x / 1e6:,.0f}백만 원"
+
+
+def times(x: float) -> str:
+    """배수: 10배 미만은 소수 한 자리."""
+    return f"{x:.1f}배" if x < 10 else f"{x:.0f}배"

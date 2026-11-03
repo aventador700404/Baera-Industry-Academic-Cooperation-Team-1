@@ -9,21 +9,21 @@ import pandas as pd
 # 테이블 이름 → {열: 타입}. 타입은 date / int / float / str
 TABLES: dict[str, dict[str, str]] = {
     "sales_daily": {"date": "date", "store_id": "str", "flavor": "str", "qty": "int"},
-    "store_master": {"store_id": "str", "store_name": "str", "type": "str", "region": "str"},
+    "store_master": {"store_id": "str", "store_name": "str", "region": "str"},
     "promo_calendar": {
         "promo_id": "str", "name": "str", "start": "date", "end": "date",
         "discount_rate": "float", "desc": "str",
     },
     "reaction_daily": {"date": "date", "source": "str", "keyword": "str", "metric": "str", "value": "float"},
+    "reaction_topics_daily": {"date": "date", "topic": "str", "mentions": "int", "positive": "int", "negative": "int"},
     "youtube_videos_daily": {
         "date": "date", "video_id": "str", "channel_type": "str", "title": "str", "views": "int",
     },
-    "store_reaction_weekly": {"week_start": "date", "store_id": "str", "mentions": "int"},
-    "store_context_weekly": {"week_start": "date", "store_id": "str", "kind": "str", "value": "float", "note": "str"},
+    "store_reaction_daily": {"date": "date", "store_id": "str", "mentions": "int"},
 }
 
 # 없어도 화면이 도는 테이블 (해당 열·문구만 빠짐)
-OPTIONAL = {"youtube_videos_daily", "store_reaction_weekly", "store_context_weekly"}
+OPTIONAL = {"youtube_videos_daily", "reaction_topics_daily", "store_reaction_daily"}
 
 
 class SchemaError(ValueError):

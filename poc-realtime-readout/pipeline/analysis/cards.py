@@ -1,132 +1,146 @@
-"""그 주에 내릴 결정 세 가지: 증산·재출시 / 판촉 지속·조정·중단 / 매장 지원 우선순위.
+"""그날 판독 → 마케팅이 할 일. 4모듈에 하나씩.
 
-입력은 build.py가 계산한 숫자 묶음(dict). 판정 기준은 config.RULES.
+  반응 대응      (모듈 1 신제품 반응)   최근 3일 알림 중 가장 급한 것, 없으면 반응 상태 요약
+  증산 · 재출시  (모듈 2 맛별 판매)     할인 효과를 뺀 맛 수요 vs 목표 (첫 주 목표 대비)
+  매장 지원      (모듈 3 매장 순위)     주변 반응으로 판독한 점검·바이럴 매장
+  판촉 조정      (모듈 4 판촉 효과)     끝난 행사의 증분 ROI 판정
 """
 from __future__ import annotations
 
 import datetime as dt
 
-from ..config import LAUNCH, RULES, VIEWS, View
+from ..config import LAUNCH, RULES
 from . import fmt
+from .alerts import PROMO_ACTION, pick_for_card
 
-PROMO_MSG = {
-    "good": "증분이 할인 비용을 넘김 → 유지하되 사이즈업·대상 품목 점검",
-    "warn": "할인 대부분이 원래 살 손님에게 돌아감 → 할인 폭 축소 또는 일정 분리",
-    "crit": "할인 비용보다 늘어난 매출이 작음 → 대상 품목·채널 축소 또는 중단 검토",
-}
+PILL = {"crit": ("crit", "즉시 대응"), "warn": ("warn", "대응 검토"), "good": ("good", "확산 활용"), "info": ("info", "관찰")}
 
 
-def card(key: str, title: str, pill: tuple[str, str], head: str, items: list[str], tags: list[str]) -> dict:
-    return {"key": key, "title": title, "pill": {"tone": pill[0], "label": pill[1]},
+def card(key: str, module: str, title: str, pill: tuple[str, str], head: str, items: list, tags: list[str]) -> dict:
+    return {"key": key, "module": module, "title": title, "pill": {"tone": pill[0], "label": pill[1]},
             "head": head, "items": [i for i in items if i], "tags": tags}
-
-
-def demand_card(v: View, c: dict) -> dict:
-    L = LAUNCH
-    title = "이달의 맛 증산 · 재출시"
-    r = c["reaction"]
-    if v.id == "pre":
-        mult = r.get("last_x") or 0
-        items = [
-            f"출시 전 평소(티저 전) 일평균 대비 {fmt.md(v.to)} 검색지수 {mult:.0f}배",
-            (f"블로그·카페 언급 최근 7일 {fmt.n(r['mentions_7d'])}건 (평소 7일 {fmt.n(r['mentions_pre_7d'])}건)"
-             if r.get("mentions_pre_7d") else None),
-            ("업계 키워드 '두바이 쫀득쿠키'는 3주 전보다 "
-             f"{fmt.pct(abs(c['trend_change']))} 낮아 유행 수명 점검 필요"
-             if (c.get("trend_change") or 0) < -0.2 else None),
-        ]
-        return card("demand", title, ("warn", "초도 물량 검토"),
-                    f"티저 이틀 만에 검색지수가 평소의 {mult:.0f}배", items, ["reaction"])
-    if v.id == VIEWS[-1].id:
-        pos = r.get("positive_7d")
-        ok = pos is not None and pos >= RULES.rerelease_positive
-        items = [
-            f"{L.launch.month}월 누적 {fmt.n(c['cum'])}개, 원조 '{L.parent_flavor}' 목표보다 일평균 "
-            f"{fmt.pct(c['month_avg'] / L.target_daily - 1)} 많음",
-            f"긍정률 {int(RULES.rerelease_positive * 100)}% 이상 유지 → 재출시 후보로 등록" if ok
-            else f"긍정률 {int(RULES.rerelease_positive * 100)}% 미만 → 재출시 보류",
-            "반응 둔화 속도를 다음 이달의 맛 물량 계획에 반영",
-        ]
-        head = (f"월 판매 {c['month_rank']}위, 최근 7일 긍정률 {fmt.pct(pos)}" if pos is not None
-                else f"월 판매 {c['month_rank']}위")
-        return card("demand", title, ("good", "재출시 후보") if ok and c["month_rank"] == 1 else ("info", "재출시 보류"),
-                    head, items, ["sales", "reaction"])
-    ratio = round(c["w_demand"] / L.target_daily, 2)  # 표시값과 판정값을 같게
-    pill = (("good", "증산 검토") if ratio >= RULES.demand_up else
-            ("info", "유지") if ratio >= RULES.demand_hold else ("warn", "감산 검토"))
-    anchor = next((f" · 공개 앵커 {(d - L.launch).days + 1}일 {val // 10_000:,}만 개와 일치"
-                   for d, val in L.anchors if d == v.to), "")
-    items = [
-        f"이번 판독 주간 일평균 판매 {fmt.n(c['w_avg'])}개 중 맛 수요(기준선) {fmt.n(c['w_demand'])}개",
-        f"목표: 원조 '{L.parent_flavor}' 일평균 {fmt.n(L.target_daily)}개 (가정)",
-        f"누적 {fmt.n(c['cum'])}개{anchor}",
-    ]
-    return card("demand", title, pill, f"할인 효과를 뺀 맛 수요가 목표의 {ratio:.2f}배", items, ["sales", "reaction"])
-
-
-def promo_card(v: View, c: dict) -> dict:
-    title = "판촉 행사 지속 · 조정 · 중단"
-    done = [p for p in c["promos"] if p["status"] == "done"]
-    if not done:
-        first = c["promos"][0] if c["promos"] else None
-        sched = ", ".join(f"{p['name']} {fmt.md(_d(p['start']))}"
-                          + (f"~{fmt.md(_d(p['end']))}" if p['start'] != p['end'] else "") for p in c["promos"])
-        head = (f"출시일({fmt.md(LAUNCH.launch)})이 {first['name']}"
-                f"({fmt.md(_d(first['start']))}~{fmt.md(_d(first['end']))})와 겹침"
-                if first and _d(first["start"]) <= LAUNCH.launch <= _d(first["end"]) else "행사 일정 확인")
-        items = ["출시 첫 주 판매에 맛 효과와 할인 효과가 섞임",
-                 "행사 없는 날 판매로 기준선을 먼저 잡아 두고 증분만 셈",
-                 f"예정 행사: {sched}"]
-        return card("promo", title, ("warn", "효과 분리 필요"), head, items, ["sales"])
-    p = done[-1]
-    label = p["verdict_label"] + ("" if p["firm"] else " (잠정)")
-    overlap = _d(p["start"]) <= LAUNCH.launch <= _d(p["end"])
-    items = [
-        PROMO_MSG[p["verdict"]],
-        "출시일과 겹친 행사라 출시 수요와 섞임 → 출시 주간 할인은 분리 권장" if overlap and p["verdict"] != "good" else None,
-        f"행사 기간 판매 {fmt.n(p['act'])}개 중 행사 덕분 {fmt.n(p['inc'])}개 "
-        f"(범위 {fmt.n(p['inc_lo'])}~{fmt.n(p['inc_hi'])})",
-        f"할인 비용 {fmt.million_won(p['cost_won'])} (가정)",
-        None if p["firm"] else (
-            f"행사 없는 날 {p['n_fit']}일로 기준선을 잡아 잠정 → 다음 판독에서 확정"
-            if p["tentative_reason"] == "few_days" else
-            f"ROI 범위 {p['roi_lo']:.2f}~{p['roi_hi']:.2f}가 판정 기준을 걸침 → 다음 판독에서 확정"),
-    ]
-    return card("promo", title, (p["verdict"], label),
-                f"{p['name']} 증분 {fmt.pct(p['inc_pct'])}, 증분 ROI {p['roi']:.2f}", items, ["sales", "cost"])
-
-
-def store_card(v: View, c: dict) -> dict:
-    title = "매장 지원 우선순위"
-    if v.id == "pre":
-        return card("store", title, ("info", "출시 후 판독"), "출시 첫 주부터 매장별 순위와 주변 반응을 같이 봄",
-                    ["순위가 오르는 매장: 재고 선배치·POP 우선",
-                     "주변 반응은 높은데 순위가 떨어지는 매장: 품절·운영 점검",
-                     "매장 유형별 반응 속도로 초도 물량 배분"], ["sales", "reaction"])
-    st = c["stores"]
-    alert, riser = st["alert"], st["riser"]
-    items = []
-    if alert:
-        pill = ("crit", "점검 우선")
-        head = f"{alert['type']} · {alert['name']}: 반응↑ 판매↓"
-        items += [f"주변 SNS 언급 {alert['sns_prev']}→{alert['sns']}건인데 순위 {alert['rank_prev']}위 → {alert['rank']}위",
-                  "품절·재고·운영 문제 의심 → 현장 점검 우선"]
-    else:
-        pill = ("good", "확산 매장 지원")
-        head = f"{riser['type']} · {riser['name']} 순위 +{riser['delta']}"
-    items.append(f"가장 많이 오른 매장: {riser['type']} · {riser['name']} "
-                 f"({riser['rank_prev']}위 → {riser['rank']}위)" + (f", {riser['why']}" if riser.get("why") else "")
-                 + " → 재고 선배치")
-    peaks = [p for p in c["peaks"] if p["firm"]]
-    if len(peaks) >= 2:
-        items.append(f"판매가 몰린 날: {peaks[0]['type']} {peaks[0]['day']}일차 → {peaks[-1]['type']} "
-                     f"{peaks[-1]['day']}일차 → 다음 맛 초도 물량은 {peaks[0]['type']}부터")
-    return card("store", title, pill, head, items, ["sales", "reaction"])
 
 
 def _d(s: str) -> dt.date:
     return dt.date.fromisoformat(s)
 
 
-def build(v: View, c: dict) -> list[dict]:
-    return [demand_card(v, c), promo_card(v, c), store_card(v, c)]
+def reaction_card(d: dt.date, c: dict) -> dict:
+    r = c["reaction"]
+    status = None
+    if r.get("last_x") is not None:
+        status = (f"검색지수 출시 전 한 달 평균의 {fmt.times(r['last_x'])}"
+                  + (f" (정점 대비 {fmt.pct(r['from_peak'])})" if d > LAUNCH.launch and r.get("from_peak") else "")
+                  + (f" · 긍정률 {fmt.pct(r['positive_7d'])}" if r.get("positive_7d") is not None else ""))
+    a = pick_for_card(c["alerts"], d, "reaction")
+    if a:
+        when = "오늘" if a["date"] == d.isoformat() else fmt.md(_d(a["date"]))
+        return card("reaction", "reaction", "반응 대응", PILL[a["tone"]], a["title"],
+                    [f"{when} 감지 · {a['detail']}", f"할 일: {a['action']}", status], ["reaction"])
+    return card("reaction", "reaction", "반응 대응", ("info", "관찰"),
+                "특이 신호 없음" if d >= LAUNCH.teaser else "출시 전 평소 수준",
+                [status, "검색·언급·주제·영상 신호를 매일 아침 판독", "할 일: 현행 유지"], ["reaction"])
+
+
+def demand_card(d: dt.date, c: dict) -> dict:
+    L, title = LAUNCH, "증산 · 재출시"
+    r = c["reaction"]
+    if d < L.launch:
+        if d >= L.teaser and r.get("last_x"):
+            return card("demand", "flavor", title, ("warn", "초도 물량 검토"),
+                        f"티저 후 검색지수가 평소의 {fmt.times(r['last_x'])}",
+                        ["판매 전이라 반응으로만 판단: 출시 첫 주 수요가 목표를 넘을 가능성",
+                         f"목표: 원조 '{L.parent_flavor}' 일평균 {fmt.n(L.target_daily)}개 (가정)"], ["reaction"])
+        return card("demand", "flavor", title, ("info", "출시 전"), "출시 전 반응 대기",
+                    [f"출시 {fmt.md(L.launch)} · 티저 {fmt.md(L.teaser)}"], ["reaction"])
+    if d == L.month_end:
+        pos = r.get("positive_7d")
+        ok = pos is not None and pos >= RULES.rerelease_positive and c["month_rank"] == 1
+        return card("demand", "flavor", title, ("good", "재출시 후보") if ok else ("info", "재출시 보류"),
+                    f"월 판매 {c['month_rank']}위, 최근 7일 긍정률 {fmt.pct(pos)}" if pos is not None
+                    else f"월 판매 {c['month_rank']}위",
+                    [f"{L.launch.month}월 누적 {fmt.n(c['cum'])}개, 목표보다 일평균 {fmt.pct(c['month_avg'] / L.target_daily - 1)} 많음",
+                     f"긍정률 {int(RULES.rerelease_positive * 100)}% 이상 유지 → 재출시 후보로 등록" if ok
+                     else "재출시 기준 미달 → 보류", "반응이 식는 속도를 다음 이달의 맛 물량 계획에 반영"],
+                    ["sales", "reaction"])
+    ratio = round(c["demand_ratio"], 2)
+    pill = (("good", "증산 검토") if ratio >= RULES.demand_up else
+            ("info", "유지") if ratio >= RULES.demand_hold else ("warn", "감산 검토"))
+    first_week = (d - L.launch).days < 6
+    anchor = next((f" · 공개 앵커 {(a - L.launch).days + 1}일 {v // 10_000:,}만 개와 일치"
+                   for a, v in L.anchors if a == d), "")
+    span = f"출시 후 {(d - L.launch).days + 1}일" if first_week else "최근 7일"
+    items = [
+        f"{span} 일평균 판매 {fmt.n(c['sales_avg'])}개 중 맛 수요 {fmt.n(c['demand_avg'])}개" if c["baseline_ready"]
+        else f"{span} 일평균 판매 {fmt.n(c['sales_avg'])}개 (행사 없는 날이 아직 부족해 할인 효과 미분리)",
+        f"목표: 원조 '{L.parent_flavor}' 일평균 {fmt.n(L.target_daily)}개 (가정)",
+        f"누적 {fmt.n(c['cum'])}개{anchor}",
+        f"원조 '{L.parent_flavor}' {c['cannib']}" if c.get("cannib") else None,
+    ]
+    if first_week:
+        pill = (pill[0], pill[1] + " (잠정)")
+    head = (f"할인 효과를 뺀 맛 수요가 목표의 {ratio:.2f}배" if c["baseline_ready"]
+            else f"판매가 목표의 {ratio:.2f}배 (할인 효과 포함)")
+    return card("demand", "flavor", title, pill, head, items, ["sales"])
+
+
+def store_card(d: dt.date, c: dict) -> dict:
+    title = "매장 지원"
+    st = c["stores"]
+    if st is None:
+        return card("store", "store", title, ("info", "첫 주 이후"), "출시 7일이 지나면 매장 순위 변화가 쌓임",
+                    ["주변 언급↑ 판매↓ 매장 → 품절·운영 점검", "주변 언급↑ 판매↑ 매장 → 재고 선배치·콘텐츠 확산"],
+                    ["sales", "reaction"])
+    checks = [r for r in st["alerts"] if r["flag"] == "check"]
+    virals = [r for r in st["alerts"] if r["flag"] == "viral"]
+    items = []
+    if checks:
+        a = checks[0]
+        pill, head = ("crit", "점검 우선"), f"{a['name']}: 반응↑ 판매↓"
+        items += [f"주변 언급 {a['sns_prev']}→{a['sns']}건(7일)인데 순위 {fmt.n(a['rank_prev'])}→{fmt.n(a['rank'])}위",
+                  "할 일: 재고·운영 확인 → 품절이면 공지·대체 맛 안내"]
+    elif virals:
+        a = virals[0]
+        pill, head = ("good", "확산 지원"), f"{a['name']}: 반응↑ 판매↑"
+        items += [f"주변 언급 {a['sns_prev']}→{a['sns']}건(7일), 순위 {fmt.n(a['rank_prev'])}→{fmt.n(a['rank'])}위",
+                  "할 일: 재고 선배치, 매장 언급 콘텐츠를 공식 채널에서 확산"]
+    else:
+        a = st["riser"]
+        pill, head = ("info", "관찰"), "반응과 연결된 매장 신호 없음"
+        items.append(f"가장 많이 오른 매장: {a['name']} ({fmt.n(a['rank_prev'])}→{fmt.n(a['rank'])}위), "
+                     + (a["why"] if a.get("why") else "주변 반응 변화 없음"))
+    if checks and virals:
+        v = virals[0]
+        items.append(f"바이럴 매장도 있음: {v['name']} (언급 {v['sns_prev']}→{v['sns']}건)")
+    return card("store", "store", title, pill, head, items, ["sales", "reaction"])
+
+
+def promo_card(d: dt.date, c: dict) -> dict:
+    title = "판촉 조정"
+    done = [p for p in c["promos"] if p["status"] == "done"]
+    if not done:
+        first = c["promos"][0] if c["promos"] else None
+        overlap = first and _d(first["start"]) <= LAUNCH.launch <= _d(first["end"])
+        pend = [p for p in c["promos"] if p["status"] in ("running", "pending")]
+        head = (f"출시일({fmt.md(LAUNCH.launch)})이 {first['name']}({fmt.md(_d(first['start']))}~"
+                f"{fmt.md(_d(first['end']))})와 겹침" if overlap else "행사 판독 대기")
+        items = ["출시 첫 주 판매에 맛 효과와 할인 효과가 섞임",
+                 "행사 없는 날 판매로 기준선을 먼저 잡고 증분만 셈",
+                 f"{pend[0]['name']}: {'진행 중' if pend[0]['status'] == 'running' else '종료, 기준선 데이터 쌓는 중'}"
+                 if pend else None]
+        return card("promo", "promo", title, ("warn", "효과 분리 필요"), head, items, ["sales"])
+    p = done[-1]
+    label = p["verdict_label"] + ("" if p["firm"] else " (잠정)")
+    items = [
+        f"할 일: {PROMO_ACTION[p['verdict']]}",
+        f"행사 기간 판매 {fmt.n(p['act'])}개 중 행사 덕분 {fmt.n(p['inc'])}개 (범위 {fmt.n(p['inc_lo'])}~{fmt.n(p['inc_hi'])})",
+        f"할인 비용 {fmt.million_won(p['cost_won'])} (가정)",
+        None if p["firm"] else (f"행사 없는 날 {p['n_fit']}일로 기준선을 잡아 잠정" if p["tentative_reason"] == "few_days"
+                                else f"ROI 범위 {p['roi_lo']:.2f}~{p['roi_hi']:.2f}가 판정 기준을 걸쳐 잠정"),
+    ]
+    return card("promo", "promo", title, (p["verdict"], label),
+                f"{p['name']} 증분 {fmt.pct(p['inc_pct'])}, 증분 ROI {p['roi']:.2f}", items, ["sales", "cost"])
+
+
+def build(d: dt.date, c: dict) -> list[dict]:
+    return [reaction_card(d, c), demand_card(d, c), store_card(d, c), promo_card(d, c)]

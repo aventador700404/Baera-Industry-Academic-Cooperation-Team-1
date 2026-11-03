@@ -1,14 +1,21 @@
-import type { Readout, View } from "../types";
+import type { Day, Readout } from "../types";
 import { fmt, pct, period } from "../format";
 import { Prov } from "./bits";
 
-export function PromoPanel({ data, view }: { data: Readout; view: View }) {
-  const fw = view.first_week;
+const STATUS: Record<string, string> = {
+  running: "진행 중 · 행사가 끝난 뒤 판독", planned: "예정", pending: "종료 · 기준선을 맞출 행사 없는 날을 쌓는 중", done: "",
+};
+const STATUS_CHIP: Record<string, string> = { running: "진행 중", planned: "예정", pending: "판독 대기", done: "" };
+
+// 모듈 4 · 판촉 행사 효과
+export function PromoPanel({ data, day }: { data: Readout; day: Day }) {
+  const fw = day.first_week;
   const r = data.meta.rules;
   return (
     <section className="panel" aria-labelledby="m4">
       <div className="panel-h">
         <div>
+          <div className="eyebrow">모듈 4</div>
           <h2 id="m4">판촉 행사 효과</h2>
           <div className="q">행사 기간 판매에서 행사가 없었을 때의 기준선을 빼서 늘어난 판매(증분)만 셉니다</div>
         </div>
@@ -29,7 +36,7 @@ export function PromoPanel({ data, view }: { data: Readout; view: View }) {
         <table>
           <thead><tr><th className="l">행사</th><th className="l">기간</th><th>판매</th><th>기준선</th><th>증분 (범위)</th><th>할인 비용</th><th>증분 ROI</th><th className="l">판정</th></tr></thead>
           <tbody>
-            {view.promos.map((p) => p.status === "done" ? (
+            {day.promos.map((p) => p.status === "done" ? (
               <tr key={p.id}>
                 <td className="l name">{p.name}<div className="note">{p.desc}</div></td>
                 <td className="l">{period(p.start, p.end)}</td>
@@ -44,8 +51,8 @@ export function PromoPanel({ data, view }: { data: Readout; view: View }) {
               <tr key={p.id}>
                 <td className="l name">{p.name}<div className="note">{p.desc}</div></td>
                 <td className="l">{period(p.start, p.end)}</td>
-                <td colSpan={5} className="l note">{p.status === "running" ? "진행 중" : "예정"} · 행사가 끝난 뒤 판독</td>
-                <td className="l"><span className="chip">{p.status === "running" ? "진행 중" : "예정"}</span></td>
+                <td colSpan={5} className="l note">{STATUS[p.status]}</td>
+                <td className="l"><span className="chip">{STATUS_CHIP[p.status]}</span></td>
               </tr>
             ))}
           </tbody>

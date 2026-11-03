@@ -2,7 +2,7 @@ import {
   BarController, BarElement, CategoryScale, Chart, Filler, LinearScale, LineController, LineElement,
   PointElement, Tooltip, type ChartConfiguration, type ChartOptions, type Plugin,
 } from "chart.js";
-import type { Readout, View } from "./types";
+import type { Day, Readout } from "./types";
 import { man, md } from "./format";
 
 // 막대+선 혼합 차트라 타입을 느슨하게 하나로 묶는다
@@ -20,8 +20,8 @@ const alpha = (hex: string, a: number) => {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 };
 
-// 행사 기간 음영, 티저·출시 표시선, 판독 시점 이후 흐리게
-function bandsPlugin(data: Readout, getView: () => View, labels: boolean): Plugin<"bar" | "line"> {
+// 행사 기간 음영, 티저·출시 표시선, 판독 시점 이후 흐리게, (반응 차트) 알림 표시
+function bandsPlugin(data: Readout, getView: () => Day, labels: boolean): Plugin<"bar" | "line"> {
   const dates = data.dates;
   const half = (chart: Chart) => {
     const x = chart.scales.x;
@@ -56,10 +56,24 @@ function bandsPlugin(data: Readout, getView: () => View, labels: boolean): Plugi
     afterDatasetsDraw(chart) {
       const { ctx, chartArea: a, scales: { x } } = chart;
       const v = getView();
-      const i = dates.indexOf(v.to);
+      const i = dates.indexOf(v.date);
       if (!a || i < 0) return;
       const px = x.getPixelForValue(i) + half(chart);
       ctx.save();
+      if (labels) {
+        // 그 날까지 감지된 알림을 차트 위쪽에 점으로
+        const tone: Record<string, string> = { crit: css("--crit"), warn: css("--warn"), good: css("--good"), info: css("--s1") };
+        const stack: Record<string, number> = {};
+        for (const al of data.alerts) {
+          if (al.date > v.date) continue;
+          const j = dates.indexOf(al.date);
+          if (j < 0) continue;
+          // 차트 위 여백 한 줄에, 같은 날 알림은 옆으로 나란히
+          const k = (stack[al.date] = (stack[al.date] ?? 0) + 1);
+          ctx.fillStyle = tone[al.tone];
+          ctx.beginPath(); ctx.arc(x.getPixelForValue(j) + (k - 1) * 7, a.top - 9, 3.5, 0, Math.PI * 2); ctx.fill();
+        }
+      }
       ctx.fillStyle = css("--dim"); ctx.fillRect(px, a.top, a.right - px, a.bottom - a.top);
       ctx.strokeStyle = css("--s1"); ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke();
@@ -105,9 +119,9 @@ function baseOptions(data: Readout, fmtY: (v: number) => string): ChartOptions<"
   };
 }
 
-export interface ChartPair { update: (v: View) => void; destroy: () => void }
+export interface ChartPair { update: (v: Day) => void; destroy: () => void }
 
-export function makeCharts(cr: HTMLCanvasElement, cs: HTMLCanvasElement, data: Readout, getView: () => View): ChartPair {
+export function makeCharts(cr: HTMLCanvasElement, cs: HTMLCanvasElement, data: Readout, getView: () => Day): ChartPair {
   const s1 = css("--s1"), s2 = css("--s2"), muted = css("--muted");
   const rangeFill = alpha(muted, 0.22);
   const dates = data.dates;
@@ -120,7 +134,7 @@ export function makeCharts(cr: HTMLCanvasElement, cs: HTMLCanvasElement, data: R
         { label: data.meta.keyword_labels.trend, data: [], borderColor: s2, backgroundColor: s2, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.25 },
       ],
     },
-    options: baseOptions(data, (v) => String(Math.round(v))),
+    options: { ...baseOptions(data, (v) => String(Math.round(v))), layout: { padding: { top: 18 } } },
     plugins: [bandsPlugin(data, getView, true)],
   });
   const sa = make(cs, {
@@ -138,16 +152,16 @@ export function makeCharts(cr: HTMLCanvasElement, cs: HTMLCanvasElement, data: R
     plugins: [bandsPlugin(data, getView, false)],
   });
 
-  const onAxis = (arr: number[] | undefined, v: View) =>
+  const onAxis = (arr: number[] | undefined, v: Day) =>
     dates.map((d) => {
       const i = data.launch_dates.indexOf(d);
-      return arr && i >= 0 && d <= v.to ? arr[i] : null;
+      return arr && i >= 0 && d <= v.date ? arr[i] : null;
     });
 
-  const update = (v: View) => {
-    ri.data.datasets[0].data = (data.series.bra ?? []).map((x, i) => (dates[i] <= v.to ? x : null));
-    ri.data.datasets[1].data = (data.series.trend ?? []).map((x, i) => (dates[i] <= v.to ? x : null));
-    sa.data.datasets[0].data = data.series.sales.map((x, i) => (dates[i] <= v.to ? x : null));
+  const update = (v: Day) => {
+    ri.data.datasets[0].data = (data.series.bra ?? []).map((x, i) => (dates[i] <= v.date ? x : null));
+    ri.data.datasets[1].data = (data.series.trend ?? []).map((x, i) => (dates[i] <= v.date ? x : null));
+    sa.data.datasets[0].data = data.series.sales.map((x, i) => (dates[i] <= v.date ? x : null));
     sa.data.datasets[1].data = onAxis(v.baseline?.lo, v);
     sa.data.datasets[2].data = onAxis(v.baseline?.hi, v);
     sa.data.datasets[3].data = onAxis(v.baseline?.base, v);

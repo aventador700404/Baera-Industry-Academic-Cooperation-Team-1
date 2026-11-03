@@ -1,15 +1,17 @@
-import type { Readout, View } from "../types";
+import type { Day, Readout } from "../types";
 import { fmt, period } from "../format";
 import { Delta, Prov } from "./bits";
 
-export function FlavorTable({ data, view }: { data: Readout; view: View }) {
-  const f = view.flavor;
+// 모듈 2 · 맛별 판매 순위 (Q2)
+export function FlavorTable({ data, day }: { data: Readout; day: Day }) {
+  const f = day.flavor;
   return (
     <section className="panel" aria-labelledby="m2">
       <div className="panel-h">
         <div>
+          <div className="eyebrow">모듈 2</div>
           <h2 id="m2">맛별 판매 순위</h2>
-          <div className="q">판독 주간 {period(f.window.start, f.window.end)} 일평균 판매, 직전 주간 대비 순위 변화</div>
+          <div className="q">최근 7일 {period(f.window.start, f.window.end)} 일평균, 그 전 7일 대비 순위 변화 · 잠식은 출시 전 주간 대비</div>
         </div>
         <div className="tags"><Prov p={data.meta.provenance_raw.sales_daily} what="판매" /></div>
       </div>

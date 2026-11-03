@@ -1,4 +1,4 @@
-/* 화면 순서: 판독 시점 → 결정 카드 3장 → 같은 날짜 축 차트 → 모듈 표 → 데이터 연결 구조 */
+/* 화면 순서: 날짜 슬라이더(재생) → 오늘의 판독 카드 4장 + 실시간 알림 → 4모듈 → 데이터 계약 */
 :root {
   --bg: #f4f5f7; --surface: #ffffff; --surface-2: #f8f9fb; --ink: #141821; --ink-2: #4a5162; --muted: #7b8293; --line: #e2e5eb;
   --s1: #2a78d6; --s2: #eb6834; --band: #f6ecd4; --band-ink: #8a6410; --dim: rgba(244, 245, 247, .72);
@@ -47,20 +47,9 @@ h1 { font-size: 28px; font-weight: 700; letter-spacing: -.01em }
 .panel-h h2 { font-size: 16px; font-weight: 700 }
 .panel-h .tags, .tags { display: flex; gap: 6px; flex-wrap: wrap }
 .q { font-size: 12px; color: var(--muted); margin-top: 2px }
-.control { display: grid; gap: 10px }
-.seg { display: flex; flex-wrap: wrap; gap: 6px }
-.seg button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 8px; padding: 7px 12px; cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25 }
-.seg button small { font-size: 11px; color: var(--muted) }
-.seg button[aria-pressed="true"] { border-color: var(--s1); background: var(--info-bg); color: var(--ink); font-weight: 600 }
-.seg button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px }
-.timing { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px }
-.timing .t { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px }
-.timing .k { font-size: 12px; color: var(--muted) }
-.timing .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums }
-.timing .v.now { color: var(--s1) }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 14px }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0 }
-.card .top { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px }
 .card h3 { font-size: 14px; font-weight: 600; color: var(--ink-2) }
 .pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap }
 .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor }
@@ -93,10 +82,6 @@ td.why { white-space: normal; min-width: 180px; color: var(--ink-2); font-size: 
 .chip { font-size: 11px; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); color: var(--ink-2); font-weight: 600; white-space: nowrap }
 .chip.new { background: var(--info-bg); color: var(--s1) } .chip.warn { background: var(--warn-bg); color: var(--warn-ink) }
 .chip.crit { background: var(--crit-bg); color: var(--crit) } .chip.good { background: var(--good-bg); color: var(--good) }
-.peak { display: grid; gap: 6px; margin-top: 14px }
-.peak .row { display: grid; grid-template-columns: 56px 1fr 92px; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2) }
-.peak .bar { height: 10px; border-radius: 0 4px 4px 0; background: var(--s1) }
-.peak .bar.tentative { background: repeating-linear-gradient(90deg, var(--s1) 0 6px, transparent 6px 9px) }
 .split { display: flex; height: 22px; border-radius: 6px; overflow: hidden; gap: 2px; margin: 6px 0 12px }
 .split div { height: 100% }
 .note { font-size: 12px; color: var(--muted) }
@@ -107,5 +92,61 @@ td.why { white-space: normal; min-width: 180px; color: var(--ink-2); font-size: 
 .schema td { white-space: normal; text-align: left; vertical-align: top }
 .schema code { font-family: var(--mono); font-size: 12px }
 footer { font-size: 12px; color: var(--muted) }
+
+/* 날짜 슬라이더 (상단 고정) */
+.timebar { position: sticky; top: 0; z-index: 5; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; display: grid; gap: 8px; box-shadow: 0 6px 16px -12px rgba(0, 0, 0, .35) }
+.tb-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap }
+.play { font: inherit; font-size: 15px; width: 42px; height: 42px; border-radius: 50%; border: 0; background: var(--s1); color: #fff; cursor: pointer; flex: none }
+.play:focus-visible { outline: 2px solid var(--s1); outline-offset: 3px }
+.tb-now { flex: 1; min-width: 180px }
+.tb-date { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums }
+.tb-gain { text-align: right }
+.tb-gain-v { font-size: 18px; font-weight: 700; color: var(--s1) }
+.timebar input[type="range"] { width: 100%; accent-color: var(--s1) }
+.tb-marks { display: flex; flex-wrap: wrap; gap: 6px }
+.tb-marks button { font: inherit; font-size: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 8px; padding: 4px 10px; cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline }
+.tb-marks button small { font-size: 11px; color: var(--muted) }
+.tb-marks button.on { border-color: var(--s1); background: var(--info-bg); color: var(--ink); font-weight: 600 }
+
+/* 본문 + 알림 피드 */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start }
+.main { display: grid; gap: 20px; min-width: 0 }
+.feed { position: sticky; top: 150px; max-height: calc(100vh - 170px); overflow-y: auto }
+.feed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px }
+.al { border: 1px solid var(--line); border-left: 3px solid var(--muted); border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; font-size: 13px }
+.al.crit { border-left-color: var(--crit) } .al.warn { border-left-color: var(--warn) } .al.good { border-left-color: var(--good) } .al.info { border-left-color: var(--s1) }
+.al.today { background: var(--info-bg) }
+.al-top { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted) }
+.al-date { font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums }
+.al-mod { flex: 1 }
+.al-title { font-weight: 700; line-height: 1.4 }
+.al-detail { color: var(--ink-2) }
+.al-action { color: var(--ink) }
+.al-action b { font-weight: 700; margin-right: 4px }
+.al-gain { font-size: 11px; color: var(--s1); font-weight: 600 }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block }
+.dot.crit { background: var(--crit) } .dot.warn { background: var(--warn) } .dot.good { background: var(--good) } .dot.info { background: var(--s1) }
+.sw.dotk { width: 8px; height: 8px; border-radius: 50%; background: var(--crit) }
+
+/* 모듈 1 하위 */
+.sub { margin-top: 18px; gap: 24px }
+.h3 { font-size: 14px; font-weight: 700; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline }
+.topics { display: grid; gap: 7px }
+.trow { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12px }
+.tname { font-weight: 600; color: var(--ink-2) }
+.tbar { height: 12px; border-radius: 3px; background: var(--crit); opacity: .85; min-width: 4px; overflow: hidden }
+.tpos { height: 100%; background: var(--good) }
+.tval { white-space: nowrap; color: var(--ink-2); font-variant-numeric: tabular-nums; display: inline-flex; gap: 4px; align-items: center }
+.conv { margin-top: 16px }
+.convrow { display: grid; grid-template-columns: 64px minmax(0, 1fr) 36px; gap: 8px; align-items: center; font-size: 12px; color: var(--ink-2); margin: 4px 0 }
+.cbar { height: 10px; border-radius: 0 4px 4px 0 }
+.convrow b { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink) }
+.panel-h .eyebrow, .card .eyebrow { font-size: 11px }
+
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: minmax(0, 1fr) }
+  .feed { position: static; max-height: 380px; order: -1 }
+}
+@media (max-width: 520px) { .timebar { position: static } .tb-gain { text-align: left } .tb-date { font-size: 17px } .trow { grid-template-columns: 64px minmax(0, 1fr) } .tval { grid-column: 2 } }
 @media (max-width: 520px) { h1 { font-size: 23px } .card .head { font-size: 16px } .chartbox { height: 190px } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }

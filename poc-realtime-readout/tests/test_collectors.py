@@ -27,6 +27,14 @@ def test_blog_parse_counts_and_sentiment():
     assert D("2026-03-02") not in pos.index                        # 판단할 글이 적으면 비움
 
 
+def test_topic_classification():
+    items = json.loads((FIX / "naver_blog.json").read_text())["items"]
+    df = naver.parse_topics(items, D("2026-03-01"), D("2026-03-02")).set_index(["date", "topic"])
+    assert df.loc[(D("2026-03-01"), "맛"), "mentions"] >= 3
+    assert df.loc[(D("2026-03-01"), "맛"), "negative"] >= 1          # '너무 달기만 해서 실망'
+    assert list(df.reset_index().columns) == ["date", "topic", "mentions", "positive", "negative"]
+
+
 def test_sentiment_strips_tags():
     assert naver.sentiment("<b>두바이</b> 진짜 존맛") == 1
     assert naver.sentiment("품절이라 실망") == -1

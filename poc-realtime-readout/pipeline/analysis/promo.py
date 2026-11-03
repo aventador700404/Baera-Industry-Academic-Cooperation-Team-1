@@ -27,11 +27,16 @@ def evaluate(promos: pd.DataFrame, dates: list[dt.date], qty: np.ndarray, bl: Ba
         row = {"id": p.promo_id, "name": p.name, "start": p.start.isoformat(), "end": p.end.isoformat(),
                "desc": p.desc, "rate": float(p.discount_rate)}
         if p.end > asof or bl is None:
-            row["status"] = "running" if p.start <= asof else "planned"
+            # pending = 끝났지만 기준선을 맞출 행사 없는 날이 아직 부족
+            row["status"] = "planned" if p.start > asof else "running" if p.end > asof else "pending"
             out.append(row)
             continue
         sel = np.array([p.start <= d <= p.end for d in dates])
         act = float(qty[sel].sum())
+        if act <= 0:  # 행사 기간 판매 데이터가 아직 안 들어옴
+            row["status"] = "pending"
+            out.append(row)
+            continue
         base, lo, hi = (float(x[sel].sum()) for x in (bl.base, bl.lo, bl.hi))
         cost_units = act * p.discount_rate      # 할인 비용을 개수로 환산 (단가는 약분됨)
         inc, inc_lo, inc_hi = act - base, act - hi, act - lo

@@ -1,10 +1,12 @@
-"""매장 순위 급변과 '왜'.
+"""모듈 3 · 매장 순위 급등: 최근 7일 vs 그 전 7일, 판매 순위 변화를 매장 주변 SNS 반응으로 판독.
 
-순위 = 판독 주간 일평균 판매(전 맛 합계) 기준 전국 순위.
-신호:
-  반응↑ 판매↓ 점검: 주변 SNS 언급이 크게 늘었는데 순위가 떨어짐 → 품절·운영 의심
-  확산 / 상승: 순위가 크게 오름
-설명('왜'): 매장 주변 맥락(유동인구, 경쟁점) → 매장 유형 전반 흐름 → 없으면 비움
+순위 = 7일 일평균 판매(전 맛 합계) 기준 전국 순위.
+판독 (반응으로만 읽는다):
+  (주변 언급↑ = 7일 15건 이상, 10건 이상 늘었고, 전국 언급 흐름보다 60% 이상 더 늘어남)
+  점검   주변 언급↑ + 순위↓  → 품절·재고·운영 의심
+  바이럴 주변 언급↑ + 순위↑  → 콘텐츠·입소문 확산, 재고 선배치
+  회복   지난 점검 매장의 순위 회복
+  그 외  반응 변화 없이 판매만 움직임 → 확인 필요
 """
 from __future__ import annotations
 
@@ -13,123 +15,77 @@ import datetime as dt
 import numpy as np
 import pandas as pd
 
-from ..config import LAUNCH, RULES, View
-from . import fmt
+from ..config import RULES
+
+WEEK = dt.timedelta(days=6)
 
 
-def weekly_rank(store_daily: pd.DataFrame, v: View) -> pd.DataFrame:
-    """store_daily: date, store_id, qty (전 맛 합계)."""
-    seg = store_daily[(store_daily["date"] >= v.start) & (store_daily["date"] <= v.end)]
-    days = (v.end - v.start).days + 1
-    avg = seg.groupby("store_id")["qty"].sum() / days
-    rank = avg.rank(ascending=False, method="first").astype(int)
-    return pd.DataFrame({"avg": avg, "rank": rank})
+def _window(df: pd.DataFrame, start: dt.date, end: dt.date, col: str) -> pd.Series:
+    seg = df[(df["date"] >= start) & (df["date"] <= end)]
+    return seg.groupby("store_id")[col].sum()
 
 
-def _context_note(ctx: pd.DataFrame | None, store_id: str, v: View) -> str | None:
-    if ctx is None or not len(ctx):
-        return None
-    lo = v.start - dt.timedelta(days=7)
-    hit = ctx[(ctx["store_id"] == store_id) & (ctx["week_start"] >= lo) & (ctx["week_start"] <= v.end)]
-    return hit.iloc[-1]["note"] if len(hit) else None
-
-
-def table(store_daily: pd.DataFrame, sm: pd.DataFrame, v: View, prev: View,
-          sns: pd.DataFrame | None, ctx: pd.DataFrame | None, top: int = 6,
-          prev_checks: set[str] | None = None) -> dict:
-    now, before = weekly_rank(store_daily, v), weekly_rank(store_daily, prev)
-    df = sm.set_index("store_id")[["store_name", "type"]].join(now).join(before, rsuffix="_prev")
-    df["delta"] = df["rank_prev"] - df["rank"]                 # +면 순위 상승
-    df["growth"] = df["avg"] / df["avg_prev"] - 1
-    type_growth = df.groupby("type").apply(lambda g: g["avg"].sum() / g["avg_prev"].sum() - 1)
-    type_delta = df.groupby("type")["delta"].median()          # 유형 전체가 같이 움직였는지
+def table(store_daily: pd.DataFrame, sm: pd.DataFrame, sns: pd.DataFrame | None, asof: dt.date,
+          prev_flags: dict[str, str] | None = None, top: int = 5) -> dict:
+    """store_daily: date, store_id, qty (전 맛 합계). sns: date, store_id, mentions."""
+    s1, s0 = asof - WEEK, asof - WEEK - dt.timedelta(days=7)
+    e0 = asof - dt.timedelta(days=7)
+    now = _window(store_daily, s1, asof, "qty") / 7
+    before = _window(store_daily, s0, e0, "qty") / 7
+    df = sm.set_index("store_id")[["store_name"]].copy()
+    df["avg"], df["avg_prev"] = now.reindex(df.index).fillna(0), before.reindex(df.index).fillna(0)
+    df["rank"] = df["avg"].rank(ascending=False, method="first").astype(int)
+    df["rank_prev"] = df["avg_prev"].rank(ascending=False, method="first").astype(int)
+    df["delta"] = df["rank_prev"] - df["rank"]                       # +면 순위 상승
     if sns is not None and len(sns):
-        s_now = sns[sns["week_start"] == v.start].set_index("store_id")["mentions"]
-        s_prev = sns[sns["week_start"] == prev.start].set_index("store_id")["mentions"]
-        df["sns"] = s_now.reindex(df.index).fillna(0).astype(int)
-        df["sns_prev"] = s_prev.reindex(df.index).fillna(0).astype(int)
-        df["sns_pct"] = (df["sns"] - df["sns_prev"]) / df["sns_prev"].clip(lower=1) * 100
+        df["sns"] = _window(sns, s1, asof, "mentions").reindex(df.index).fillna(0).astype(int)
+        df["sns_prev"] = _window(sns, s0, e0, "mentions").reindex(df.index).fillna(0).astype(int)
     else:
         df["sns"] = df["sns_prev"] = 0
-        df["sns_pct"] = np.nan
+    df["sns_pct"] = (df["sns"] - df["sns_prev"]) / df["sns_prev"].clip(lower=1) * 100
+    # 전국 언급 흐름 대비 초과 증가율: (매장 증가 배수 ÷ 전국 증가 배수 − 1).
+    # 언급이 적은 매장의 0→3건 같은 배수 폭증을 막으려고 양쪽에 5건씩 더해서 배수를 잰다.
+    nat = df["sns"].sum() / max(df["sns_prev"].sum(), 1)
+    df["sns_excess"] = (((df["sns"] + 5) / (df["sns_prev"] + 5)) / nat - 1) * 100
+    sns_up = ((df["sns"] >= RULES.store_sns_min_mentions)
+              & (df["sns"] - df["sns_prev"] >= RULES.store_sns_min_increase)
+              & (df["sns_excess"] >= RULES.store_sns_up_pct))
+    prev_flags = prev_flags or {}
 
-    def flag(r) -> str | None:
-        if (r.sns >= RULES.store_sns_min_mentions and r.sns_pct >= RULES.store_sns_up_pct
-                and r.delta <= -RULES.store_rank_drop):
-            return "check"
+    def flag(sid: str, r) -> tuple[str | None, str | None]:
+        if sns_up[sid] and r.delta <= -RULES.store_rank_drop:
+            return "check", "주변 언급은 느는데 판매 감소 → 품절·재고·운영 의심"
+        if sns_up[sid] and r.delta >= RULES.store_rank_rise:
+            return "viral", "주변 언급과 판매가 같이 급증 → 콘텐츠·입소문 확산"
+        if prev_flags.get(sid) == "check" and r.delta > 0:
+            return "recover", "지난 점검 매장, 판매 회복"
         if r.delta >= RULES.store_rank_rise:
-            return "spread"
-        if r.delta >= RULES.store_rank_rise / 2:
-            return "rise"
+            return "rise", None
         if r.delta <= -RULES.store_rank_drop:
-            return "drop"
-        return None
+            return "drop", None
+        return None, None
 
-    df["flag"] = [flag(r) for r in df.itertuples()]
-    df["ctx"] = [_context_note(ctx, sid, v) for sid in df.index]
-    why = []
-    for r in df.itertuples():
-        if r.ctx:
-            why.append(r.ctx)
-        elif r.flag == "check":
-            why.append("반응은 느는데 판매 감소 → 품절·재고·운영 의심")
-        elif prev_checks and r.Index in prev_checks and r.delta > 0:
-            why.append("지난 판독의 점검 매장, 판매 회복")
-        else:
-            td = type_delta[r.type]
-            same_dir = abs(td) >= 50 and np.sign(td) == np.sign(r.delta)
-            why.append(f"{r.type} 매장 전반 순위 {'상승' if td > 0 else '하락'} (중앙값 {fmt.signed(td)})"
-                       if same_dir else None)
-    df["why"] = why
-
+    fw = [flag(sid, r) for sid, r in df.iterrows()]
+    df["flag"], df["why"] = [f for f, _ in fw], [w for _, w in fw]
+    order = {"check": 0, "viral": 1, "recover": 2}
     pick = pd.concat([
-        df[df["flag"] == "check"],
-        df[df["ctx"].notna() & (df["delta"].abs() >= 50)],
+        df[df["flag"].isin(order)].assign(o=lambda x: x["flag"].map(order)).sort_values(["o", "delta"]),
         df.reindex(df["delta"].abs().sort_values(ascending=False).index),
     ])
     pick = pick[~pick.index.duplicated()].head(top)
-    rows = [{
-        "store_id": sid, "name": r.store_name, "type": r.type, "rank": int(r["rank"]),
-        "rank_prev": int(r.rank_prev), "delta": int(r.delta), "sns": int(r.sns), "sns_prev": int(r.sns_prev),
-        "sns_pct": None if pd.isna(r.sns_pct) else round(float(r.sns_pct)), "flag": r.flag, "why": r.why if isinstance(r.why, str) else None,
-    } for sid, r in pick.iterrows()]
+
+    def row(sid: str, r) -> dict:
+        return {"store_id": sid, "name": r.store_name, "rank": int(r["rank"]), "rank_prev": int(r.rank_prev),
+                "delta": int(r.delta), "sns": int(r.sns), "sns_prev": int(r.sns_prev),
+                "flag": r.flag, "why": r.why if isinstance(r.why, str) else None}
+
+    rows = [row(sid, r) for sid, r in pick.iterrows()]
+    flagged = {sid: f for sid, f in df["flag"].items() if f in ("check", "viral")}
     return {
-        "rows": rows, "total": int(len(df)),
-        "check_ids": sorted(df.index[df["flag"] == "check"]),
-        "alert": next((r for r in rows if r["flag"] == "check"), None),
-        "riser": _row(df, df["delta"].idxmax()),
-        "counts": {k: int((df["flag"] == k).sum()) for k in ("check", "spread", "drop")},
-        "type_growth": {k: round(float(g), 4) for k, g in type_growth.items()},
-        "type_delta": {k: int(d) for k, d in type_delta.items()},
+        "window": {"start": s1.isoformat(), "end": asof.isoformat()},
+        "rows": rows, "total": int(len(df)), "national_sns_change": float(nat - 1),
+        "counts": {k: int((df["flag"] == k).sum()) for k in ("check", "viral", "rise", "drop")},
+        "flags": flagged,
+        "alerts": [row(sid, df.loc[sid]) for sid in flagged],
+        "riser": row(df["delta"].idxmax(), df.loc[df["delta"].idxmax()]),
     }
-
-
-def _row(df: pd.DataFrame, sid: str) -> dict:
-    r = df.loc[sid]
-    return {"store_id": sid, "name": r.store_name, "type": r.type, "rank": int(r["rank"]),
-            "rank_prev": int(r.rank_prev), "delta": int(r.delta),
-            "why": r.why if isinstance(r.why, str) else None}
-
-
-def type_peaks(flavor_store_daily: pd.DataFrame, sm: pd.DataFrame, asof: dt.date) -> list[dict]:
-    """매장 유형별로 이달의 맛 판매가 다른 유형보다 가장 몰린 날 (출시 후 n일차).
-
-    상대지수 = 그 유형 매장당 판매 ÷ 전체 매장당 판매 (3일 이동평균). 1보다 크면 그 유형에 몰림.
-    최고점 뒤로 이틀 이상 데이터가 있어야 '확정'.
-    """
-    x = flavor_store_daily[flavor_store_daily["date"] <= asof].merge(sm[["store_id", "type"]], on="store_id")
-    if x.empty:
-        return []
-    per = x.groupby(["date", "type"])["qty"].sum().unstack()
-    cnt = sm["type"].value_counts()
-    overall = x.groupby("date")["qty"].sum() / len(sm)
-    rel = (per / cnt).div(overall, axis=0).rolling(3, center=True, min_periods=2).mean()
-    last = max(rel.index)
-    out = []
-    for t in rel.columns:
-        d = rel[t].idxmax()
-        out.append({
-            "type": t, "day": (d - LAUNCH.launch).days + 1, "date": d.isoformat(),
-            "index": round(float(rel[t].max()), 3), "firm": (last - d).days >= 2,
-        })
-    return sorted(out, key=lambda r: r["day"])

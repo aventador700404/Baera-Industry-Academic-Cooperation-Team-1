@@ -43,24 +43,25 @@ class Launch:
     })
 
 
-@dataclass(frozen=True)
-class View:
-    id: str
-    label: str
-    read: dt.date      # 이 결과를 보는 날 (월요일 판독)
-    to: dt.date        # 이 날까지의 데이터로 판독
-    start: dt.date     # 판독 주간 시작 (맛 순위·매장 순위 집계 구간)
-    end: dt.date
-
-
-VIEWS: tuple[View, ...] = (
-    View("pre", "출시 전", D("2026-02-28"), D("2026-02-28"), D("2026-02-22"), D("2026-02-28")),
-    View("w1", "1주차", D("2026-03-09"), D("2026-03-08"), D("2026-03-01"), D("2026-03-08")),
-    View("w2", "2주차", D("2026-03-16"), D("2026-03-15"), D("2026-03-09"), D("2026-03-15")),
-    View("w3", "3주차", D("2026-03-23"), D("2026-03-22"), D("2026-03-16"), D("2026-03-22")),
-    View("w4", "4주차", D("2026-03-30"), D("2026-03-29"), D("2026-03-23"), D("2026-03-29")),
-    View("w5", "월말", D("2026-04-01"), D("2026-03-31"), D("2026-03-30"), D("2026-03-31")),
+# ---------------------------------------------------------------- 판독 시점
+# 실시간 판독을 3월 출시 리플레이로 시연한다: 하루씩 '그 날까지의 데이터'로 다시 계산.
+# d일 데이터는 d+1일 아침에 본다고 가정.
+HISTORY_START = D("2026-02-01")            # 차트·기준 기간 시작 (티저 전 약 4주 = 출시 전 한 달)
+REPLAY_START = D("2026-02-20")             # 슬라이더 시작
+PRE_WEEK = (D("2026-02-22"), D("2026-02-28"))   # 맛 순위·잠식 비교용 출시 전 주간
+MILESTONES = (
+    ("티저", D("2026-02-27")), ("출시", D("2026-03-01")), ("1주", D("2026-03-07")),
+    ("2주", D("2026-03-14")), ("3주", D("2026-03-21")), ("4주", D("2026-03-28")), ("월말", D("2026-03-31")),
 )
+
+
+def asof_dates() -> list[dt.date]:
+    return [REPLAY_START + dt.timedelta(days=i) for i in range((LAUNCH.month_end - REPLAY_START).days + 1)]
+
+
+def read_day(asof: dt.date) -> dt.date:
+    """asof까지의 데이터를 보는 날 (다음 날 아침)."""
+    return asof + dt.timedelta(days=1)
 
 
 @dataclass(frozen=True)
@@ -72,11 +73,21 @@ class Rules:
     demand_up: float = 1.2
     demand_hold: float = 0.9
     rerelease_positive: float = 0.70
-    # 매장: 반응↑ 판매↓
+    # 매장 (최근 7일 vs 그 전 7일): 반응↑ 판매↓ = 품절·운영 의심, 반응↑ 판매↑ = 바이럴 확산
+    # 주변 언급 증가는 전국 언급 흐름을 뺀 값으로 본다 (출시 직후 전 매장 언급이 같이 뛰는 것은 신호가 아님)
     store_sns_up_pct: float = 60.0
     store_sns_min_mentions: int = 15
+    store_sns_min_increase: int = 10
     store_rank_drop: int = 100
     store_rank_rise: int = 100
+    # 알림
+    search_spike_x: float = 5.0          # 출시 전 한 달 평균 대비 검색지수 배수
+    mentions_spike_x: float = 3.0        # 최근 14일 중앙값 대비 언급량 배수
+    topic_surge_x: float = 2.0           # 주제 비중이 최근 14일 대비 몇 배
+    topic_min_mentions: int = 150        # 최근 3일 그 주제 언급 최소
+    sentiment_drop_pp: float = 5.0       # 최근 3일 긍정률이 그 전 7일보다 몇 %p 하락
+    video_milestones: tuple = (1_000_000, 3_000_000)  # 영상 조회수 돌파 (원값 기준)
+    trend_fade: float = 0.6              # 업계 키워드가 3주 전의 이 비율 이하로 떨어지면 (40% 이상 하락)
 
 
 LAUNCH = Launch()
