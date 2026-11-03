@@ -20,10 +20,12 @@ TABLES: dict[str, dict[str, str]] = {
         "date": "date", "video_id": "str", "channel_type": "str", "title": "str", "views": "int",
     },
     "store_reaction_daily": {"date": "date", "store_id": "str", "mentions": "int"},
+    "ad_daily": {"date": "date", "campaign": "str", "channel": "str", "impressions": "int", "clicks": "int",
+                 "spend": "int"},
 }
 
 # 없어도 화면이 도는 테이블 (해당 열·문구만 빠짐)
-OPTIONAL = {"youtube_videos_daily", "reaction_topics_daily", "store_reaction_daily"}
+OPTIONAL = {"youtube_videos_daily", "reaction_topics_daily", "store_reaction_daily", "ad_daily"}
 
 
 class SchemaError(ValueError):

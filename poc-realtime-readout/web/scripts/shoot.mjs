@@ -20,7 +20,7 @@ for (const [name, w, h, d, scheme] of shots) {
   // 외부 폰트 로드 실패는 네트워크 문제라 제외
   page.on("console", (m) => m.type() === "error" && !m.text().startsWith("Failed to load resource") && errors.push(`${name}: ${m.text()}`));
   await page.goto(`${base}#d=${d}`, { waitUntil: "networkidle" });
-  await page.waitForSelector(".card");
+  await page.waitForSelector(".quad");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   if (overflow > 0) errors.push(`${name}: 가로 스크롤 ${overflow}px`);
   await page.screenshot({ path: `${out}/${name}.png`, fullPage: true });
@@ -29,10 +29,10 @@ for (const [name, w, h, d, scheme] of shots) {
 // 재생 버튼: 3초 뒤 날짜가 넘어갔는지
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 await page.goto(`${base}#d=2026-03-01`, { waitUntil: "networkidle" });
-const before = await page.textContent(".tb-date");
+const before = await page.textContent(".tb-day");
 await page.click(".play");
 await page.waitForTimeout(3000);
-const after = await page.textContent(".tb-date");
+const after = await page.textContent(".tb-day");
 if (before === after) errors.push(`재생: 날짜가 안 넘어감 (${before})`);
 else console.log(`재생 확인: ${before} → ${after}`);
 await browser.close();

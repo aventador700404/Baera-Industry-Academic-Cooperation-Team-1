@@ -3,7 +3,7 @@ import {
   PointElement, Tooltip, type ChartConfiguration, type ChartOptions, type Plugin,
 } from "chart.js";
 import type { Day, Readout } from "./types";
-import { man, md } from "./format";
+import { fmt, man, md } from "./format";
 
 // 막대+선 혼합 차트라 타입을 느슨하게 하나로 묶는다
 type Series = (number | null)[];
@@ -19,16 +19,16 @@ const alpha = (hex: string, a: number) => {
   const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 };
+const Y_WIDTH = 46; // 세 차트의 y축 폭을 맞춰 날짜 축을 정확히 정렬
 
-// 행사 기간 음영, 티저·출시 표시선, 판독 시점 이후 흐리게, (반응 차트) 알림 표시
-function bandsPlugin(data: Readout, getView: () => Day, labels: boolean): Plugin<"bar" | "line"> {
+interface Role { top: boolean; bottom: boolean }
+
+// 행사 기간 음영, 티저·출시 표시선, 기준일 이후 흐리게, (맨 위 차트) 알림 점
+function overlay(data: Readout, getDay: () => Day, role: Role): Plugin<"bar" | "line"> {
   const dates = data.dates;
-  const half = (chart: Chart) => {
-    const x = chart.scales.x;
-    return (x.getPixelForValue(1) - x.getPixelForValue(0)) / 2;
-  };
+  const half = (chart: Chart) => (chart.scales.x.getPixelForValue(1) - chart.scales.x.getPixelForValue(0)) / 2;
   return {
-    id: "bands",
+    id: "overlay",
     beforeDatasetsDraw(chart) {
       const { ctx, chartArea: a, scales: { x } } = chart;
       if (!a) return;
@@ -39,6 +39,10 @@ function bandsPlugin(data: Readout, getView: () => Day, labels: boolean): Plugin
         if (i0 < 0) continue;
         ctx.fillStyle = css("--band");
         ctx.fillRect(x.getPixelForValue(i0) - h, a.top, x.getPixelForValue(i1) - x.getPixelForValue(i0) + 2 * h, a.bottom - a.top);
+        if (role.top) {
+          ctx.fillStyle = css("--band-ink"); ctx.font = `600 10px ${css("--font")}`; ctx.textAlign = "left";
+          ctx.fillText(p.name, x.getPixelForValue(i0) - h + 3, a.bottom - 4);
+        }
       }
       for (const m of data.markers) {
         const i = dates.indexOf(m.date);
@@ -46,29 +50,27 @@ function bandsPlugin(data: Readout, getView: () => Day, labels: boolean): Plugin
         const px = x.getPixelForValue(i);
         ctx.strokeStyle = css("--muted"); ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke(); ctx.setLineDash([]);
-        if (labels) {
-          ctx.fillStyle = css("--ink-2"); ctx.font = `11px ${css("--font")}`; ctx.textAlign = "left";
-          ctx.fillText(m.label, px + 4, a.top + 11);
+        if (role.top) {
+          ctx.fillStyle = css("--ink-2"); ctx.font = `11px ${css("--font")}`; ctx.textAlign = "right";
+          ctx.fillText(m.label, px - 4, a.top + 11);
         }
       }
       ctx.restore();
     },
     afterDatasetsDraw(chart) {
       const { ctx, chartArea: a, scales: { x } } = chart;
-      const v = getView();
+      const v = getDay();
       const i = dates.indexOf(v.date);
       if (!a || i < 0) return;
       const px = x.getPixelForValue(i) + half(chart);
       ctx.save();
-      if (labels) {
-        // 그 날까지 감지된 알림을 차트 위쪽에 점으로
+      if (role.top) {
         const tone: Record<string, string> = { crit: css("--crit"), warn: css("--warn"), good: css("--good"), info: css("--s1") };
         const stack: Record<string, number> = {};
         for (const al of data.alerts) {
           if (al.date > v.date) continue;
           const j = dates.indexOf(al.date);
           if (j < 0) continue;
-          // 차트 위 여백 한 줄에, 같은 날 알림은 옆으로 나란히
           const k = (stack[al.date] = (stack[al.date] ?? 0) + 1);
           ctx.fillStyle = tone[al.tone];
           ctx.beginPath(); ctx.arc(x.getPixelForValue(j) + (k - 1) * 7, a.top - 9, 3.5, 0, Math.PI * 2); ctx.fill();
@@ -77,20 +79,24 @@ function bandsPlugin(data: Readout, getView: () => Day, labels: boolean): Plugin
       ctx.fillStyle = css("--dim"); ctx.fillRect(px, a.top, a.right - px, a.bottom - a.top);
       ctx.strokeStyle = css("--s1"); ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke();
-      const right = px > a.right - 80;
-      ctx.fillStyle = css("--s1"); ctx.font = `600 11px ${css("--font")}`; ctx.textAlign = right ? "right" : "left";
-      ctx.fillText(`판독 ${md(v.read)}`, px + (right ? -6 : 6), a.bottom - 6);
+      if (role.bottom) {
+        const right = px > a.right - 70;
+        ctx.fillStyle = css("--s1"); ctx.font = `600 11px ${css("--font")}`; ctx.textAlign = right ? "right" : "left";
+        ctx.fillText(`기준일 ${md(v.date)}`, px + (right ? -6 : 6), a.bottom - 6);
+      }
       ctx.restore();
     },
   };
 }
 
-function baseOptions(data: Readout, fmtY: (v: number) => string): ChartOptions<"bar" | "line"> {
+function options(data: Readout, fmtY: (v: number) => string, role: Role, tip: (i: number) => string[] = () => []):
+  ChartOptions<"bar" | "line"> {
   const dates = data.dates, line = css("--line"), ink2 = css("--ink-2"), font = css("--font");
   const promoOf = (d: string) => data.promos.find((p) => d >= p.start && d <= p.end);
   return {
     responsive: true, maintainAspectRatio: false, animation: false,
-    interaction: { mode: "index", intersect: false }, layout: { padding: { top: 4 } },
+    interaction: { mode: "index", intersect: false },
+    layout: { padding: { top: role.top ? 18 : 4 } },
     plugins: {
       legend: { display: false },
       tooltip: {
@@ -100,6 +106,7 @@ function baseOptions(data: Readout, fmtY: (v: number) => string): ChartOptions<"
         callbacks: {
           title: (it) => { const d = dates[it[0].dataIndex]; const p = promoOf(d); return md(d) + (p ? ` · ${p.name}` : ""); },
           label: (it) => ` ${it.dataset.label}: ${fmtY(it.raw as number)}`,
+          afterBody: (it) => tip(it[0].dataIndex),
         },
       },
     },
@@ -107,49 +114,66 @@ function baseOptions(data: Readout, fmtY: (v: number) => string): ChartOptions<"
       x: {
         grid: { display: false }, border: { color: line },
         ticks: {
-          color: ink2, font: { family: font, size: 11 }, autoSkip: false, maxRotation: 0,
+          display: role.bottom, color: ink2, font: { family: font, size: 11 }, autoSkip: false, maxRotation: 0,
           callback: (_v, idx) => { const d = dates[idx]; return /-(01|08|15|22)$/.test(d) ? md(d) : ""; },
         },
       },
       y: {
         beginAtZero: true, grid: { color: line, lineWidth: 1 }, border: { display: false },
-        ticks: { color: ink2, font: { family: font, size: 11 }, maxTicksLimit: 5, callback: (v) => fmtY(Number(v)) },
+        afterFit: (scale) => { scale.width = Y_WIDTH; },
+        ticks: { color: ink2, font: { family: font, size: 10 }, maxTicksLimit: 4, callback: (v) => fmtY(Number(v)) },
       },
     },
   };
 }
 
-export interface ChartPair { update: (v: Day) => void; destroy: () => void }
+export interface Charts { update: (v: Day) => void; destroy: () => void }
 
-export function makeCharts(cr: HTMLCanvasElement, cs: HTMLCanvasElement, data: Readout, getView: () => Day): ChartPair {
-  const s1 = css("--s1"), s2 = css("--s2"), muted = css("--muted");
-  const rangeFill = alpha(muted, 0.22);
-  const dates = data.dates;
-  const ri = make(cr, {
+// 같은 날짜 축의 세 줄: SNS 반응 / 광고 / 판매
+export function makeCharts(cr: HTMLCanvasElement, ca: HTMLCanvasElement, cs: HTMLCanvasElement,
+                           data: Readout, getDay: () => Day): Charts {
+  const s1 = css("--s1"), s2 = css("--s2"), s3 = css("--s3"), trend = css("--trend"), muted = css("--muted");
+  const dates = data.dates, S = data.series;
+
+  const reaction = make(cr, {
     type: "line",
     data: {
       labels: dates,
       datasets: [
-        { label: data.meta.keyword_labels.bra, data: [], borderColor: s1, backgroundColor: s1, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.25 },
-        { label: data.meta.keyword_labels.trend, data: [], borderColor: s2, backgroundColor: s2, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.25 },
+        { label: data.meta.keyword_labels.bra, data: [], borderColor: s2, backgroundColor: s2, borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 4, tension: 0.25 },
+        { label: data.meta.keyword_labels.trend, data: [], borderColor: trend, backgroundColor: trend, borderWidth: 1.6, borderDash: [4, 3], pointRadius: 0, pointHoverRadius: 3, tension: 0.25 },
       ],
     },
-    options: { ...baseOptions(data, (v) => String(Math.round(v))), layout: { padding: { top: 18 } } },
-    plugins: [bandsPlugin(data, getView, true)],
+    options: options(data, (v) => String(Math.round(v)), { top: true, bottom: false }),
+    plugins: [overlay(data, getDay, { top: true, bottom: false })],
   });
-  const sa = make(cs, {
+
+  const adTip = (i: number) => {
+    const c = S.ad_campaign[i], sp = S.ad_spend[i], ck = S.ad_clicks[i], im = S.ad_impressions[i];
+    return c ? [` 캠페인: ${c}`, ` 클릭: ${fmt(ck ?? 0)} (${im ? ((100 * (ck ?? 0)) / im).toFixed(2) : "-"}%)`, ` 비용: ${fmt((sp ?? 0) / 10000)}만 원`] : [];
+  };
+  const ads = make(ca, {
+    type: "bar",
+    data: { labels: dates, datasets: [
+      { label: "광고 노출", data: [], backgroundColor: s3, borderRadius: { topLeft: 2, topRight: 2 }, borderSkipped: "bottom", categoryPercentage: 0.9, barPercentage: 0.85 },
+    ] },
+    options: options(data, man, { top: false, bottom: false }, adTip),
+    plugins: [overlay(data, getDay, { top: false, bottom: false })],
+  });
+
+  const sales = make(cs, {
     type: "bar",
     data: {
       labels: dates,
       datasets: [
-        { type: "bar", label: "일별 판매", data: [], backgroundColor: s1, borderRadius: { topLeft: 3, topRight: 3 }, borderSkipped: "bottom", categoryPercentage: 0.9, barPercentage: 0.85, order: 3 },
+        { type: "bar", label: "판매", data: [], backgroundColor: s1, borderRadius: { topLeft: 3, topRight: 3 }, borderSkipped: "bottom", categoryPercentage: 0.9, barPercentage: 0.85, order: 3 },
         { type: "line", label: "기준선 하한", data: [], borderWidth: 0, pointRadius: 0, fill: false, order: 2, hideInTooltip: true },
-        { type: "line", label: "기준선 범위", data: [], borderWidth: 0, pointRadius: 0, backgroundColor: rangeFill, fill: "-1", order: 2, hideInTooltip: true },
-        { type: "line", label: "기준선 (추정)", data: [], borderColor: muted, borderDash: [5, 4], borderWidth: 2, pointRadius: 0, pointHoverRadius: 3, tension: 0.2, order: 1 },
+        { type: "line", label: "기준선 범위", data: [], borderWidth: 0, pointRadius: 0, backgroundColor: alpha(muted, 0.22), fill: "-1", order: 2, hideInTooltip: true },
+        { type: "line", label: "행사 없었을 때 (추정)", data: [], borderColor: muted, borderDash: [5, 4], borderWidth: 2, pointRadius: 0, pointHoverRadius: 3, tension: 0.2, order: 1 },
       ],
     },
-    options: baseOptions(data, man),
-    plugins: [bandsPlugin(data, getView, false)],
+    options: options(data, man, { top: false, bottom: true }),
+    plugins: [overlay(data, getDay, { top: false, bottom: true })],
   });
 
   const onAxis = (arr: number[] | undefined, v: Day) =>
@@ -157,16 +181,17 @@ export function makeCharts(cr: HTMLCanvasElement, cs: HTMLCanvasElement, data: R
       const i = data.launch_dates.indexOf(d);
       return arr && i >= 0 && d <= v.date ? arr[i] : null;
     });
+  const upto = (arr: (number | null)[] | null, v: Day) => (arr ?? []).map((x, i) => (dates[i] <= v.date ? x : null));
 
   const update = (v: Day) => {
-    ri.data.datasets[0].data = (data.series.bra ?? []).map((x, i) => (dates[i] <= v.date ? x : null));
-    ri.data.datasets[1].data = (data.series.trend ?? []).map((x, i) => (dates[i] <= v.date ? x : null));
-    sa.data.datasets[0].data = data.series.sales.map((x, i) => (dates[i] <= v.date ? x : null));
-    sa.data.datasets[1].data = onAxis(v.baseline?.lo, v);
-    sa.data.datasets[2].data = onAxis(v.baseline?.hi, v);
-    sa.data.datasets[3].data = onAxis(v.baseline?.base, v);
-    ri.update("none"); sa.update("none");
+    reaction.data.datasets[0].data = upto(S.bra, v);
+    reaction.data.datasets[1].data = upto(S.trend, v);
+    ads.data.datasets[0].data = upto(S.ad_impressions, v);
+    sales.data.datasets[0].data = upto(S.sales, v);
+    sales.data.datasets[1].data = onAxis(v.baseline?.lo, v);
+    sales.data.datasets[2].data = onAxis(v.baseline?.hi, v);
+    sales.data.datasets[3].data = onAxis(v.baseline?.base, v);
+    for (const c of [reaction, ads, sales]) c.update("none");
   };
-  return { update, destroy: () => { ri.destroy(); sa.destroy(); } };
+  return { update, destroy: () => { reaction.destroy(); ads.destroy(); sales.destroy(); } };
 }
-

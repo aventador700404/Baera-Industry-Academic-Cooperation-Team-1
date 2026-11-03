@@ -10,7 +10,7 @@ export interface Alert {
 }
 
 export interface Card {
-  key: "monitor" | "demand" | "store" | "promo"; module: Module; title: string;
+  key: "monitor" | "reaction" | "demand" | "store" | "promo"; module: Module; title: string;
   pill: { tone: Tone; label: string };
   head: string; items: string[];
   tags: ("sales" | "reaction" | "cost")[];
@@ -46,7 +46,8 @@ export interface TopicRow {
 export interface Day {
   date: string; read: string; gain_days: number;
   kpis: Kpi[];
-  monitor: Card;                       // 매일 모니터링
+  monitor: Card;                       // 매일 모니터링 (모든 모듈 중 가장 급한 신호)
+  reaction_status: Card;               // 신제품 반응 패널 머리 (매일)
   weekly: {                            // 가장 최근 주간 판독 (월요일 아침, 일요일까지의 데이터)
     asof: string; read: string; next_read: string | null; gain_days: number;
     cards: Card[]; new_alerts: number;
@@ -65,6 +66,7 @@ export interface Day {
 export interface Readout {
   meta: {
     title: string; flavor: string; parent_flavor: string; generated_at: string;
+    product: { name: string; label: string; teaser: string; launch: string };
     provenance: Record<string, string>; provenance_raw: Record<string, Prov>;
     stores_total: number; assumptions: string;
     rules: { roi_keep: number; roi_adjust: number; unit_price: number; target_daily: number };
@@ -76,7 +78,8 @@ export interface Readout {
   dates: string[];
   launch_dates: string[];
   series: { bra: (number | null)[] | null; trend: (number | null)[] | null; mentions: (number | null)[] | null;
-            sales: (number | null)[] };
+            sales: (number | null)[]; ad_impressions: (number | null)[]; ad_spend: (number | null)[];
+            ad_clicks: (number | null)[]; ad_campaign: (string | null)[] };
   promos: { id: string; name: string; start: string; end: string; rate: number; desc: string }[];
   markers: { date: string; label: string }[];
   alerts: Alert[];

@@ -11,9 +11,10 @@
 | `reaction_topics_daily` | date, topic, mentions, positive, negative | 목 | 블로그·카페 요약문 주제 분류 (계정 연동 시 배달앱·플레이스 리뷰도) | 매일 |
 | `youtube_videos_daily` | date, video_id, channel_type, title, views | 목 | YouTube Data API 스냅샷 | 매일 (시간 단위 가능) |
 | `store_reaction_daily` | date, store_id, mentions | 목 | '배스킨라빈스 + 지점명' 블로그 검색 결과 수 | 매일 |
+| `ad_daily` | date, campaign, channel, impressions, clicks, spend | 목 (캠페인 4개 × 유튜브·인스타·네이버) | 퍼포먼스 대행사 리포트(노출·클릭·비용), 광고 계정 연동 | 매일 |
 
 `reaction_daily`는 long 형식이다. 지금 쓰는 키: `naver_datalab/bra|trend/search_index`, `naver_blog/bra/mentions`, `naver_blog/bra/positive_ratio`.
-마지막 세 테이블은 없어도 화면이 돈다(해당 패널만 빠짐).
+`reaction_topics_daily`, `youtube_videos_daily`, `store_reaction_daily`, `ad_daily`는 없어도 화면이 돈다(해당 부분만 빠짐).
 
 ## 공개 API (파트 1 리서치, 접근 2026-10-30 기준)
 
@@ -65,7 +66,8 @@
 | 기존 맛 8종 판매량·순서 | 엄마는 외계인 5만 ~ 슈팅스타 1.9만 | 순서는 알려진 인기 순위 기억 기반(이번에 확인 안 함), 수량은 근거 없음 |
 | 요일 패턴, 원조 잠식(−15% → −6%), 딸기 시즌 상승 | 고정값 | 본사 판매 데이터 |
 | 검색지수 곡선, 언급 수(검색지수 × 34), 주제별 비중·긍정률 | 고정값 | 네이버 데이터랩 키를 받으면 2~3월 검색지수는 실제 값으로 교체 가능 |
-| 지금 방식 판독일 | 4/6 (월말 정산 후) | '판독에 약 1개월'은 전해 들은 내용, 본사 질문 Q1 |
+| 지금 방식 판독일 | 4/6 (월말 정산 후) | '판독에 약 1개월'은 전해 들은 내용, 본사 질문 Q1 (화면에는 표시 안 함) |
+| 광고 캠페인·노출·클릭률·비용 | 티저·출시·배라위크·31데이, 일 100만~260만 노출, 클릭률 0.9~1.3%, 노출 1천 회당 5,500~6,500원 | 대행사 리포트, 본사 마케팅 (파트 1: 대행사는 CTR·조회율·조회당 비용으로 보고) |
 
 ### 심어 둔 사건 (화면이 그 날 잡아야 하는 것, 정답은 `_truth.json`)
 
