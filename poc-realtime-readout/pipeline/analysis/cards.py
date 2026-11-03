@@ -50,7 +50,7 @@ def monitor_card(d: dt.date, c: dict) -> dict:
                     ["reaction"] if a["module"] == "reaction" else ["sales", "reaction"])
     return card("monitor", "reaction", "오늘의 모니터링", ("info", "관찰"),
                 "특이 신호 없음" if d >= LAUNCH.teaser else "출시 전 평소 수준",
-                [status, "검색·언급·주제·영상 신호를 매일 아침 판독", "할 일: 현행 유지"], ["reaction"])
+                [status, "검색·언급·주제·영상 신호를 매일 아침 모니터링", "할 일: 현행 유지"], ["reaction"])
 
 
 def demand_card(d: dt.date, c: dict) -> dict:
