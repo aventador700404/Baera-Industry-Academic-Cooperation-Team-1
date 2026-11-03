@@ -60,10 +60,19 @@ def build(tables: Tables | None = None) -> dict:
     sns = T.frames.get("store_reaction_daily")
     topics = T.frames.get("reaction_topics_daily")
     yt = T.frames.get("youtube_videos_daily")
+    ads = T.frames.get("ad_daily")
 
     reac = T["reaction_daily"]
     dates = daterange(min(min(reac["date"]), HISTORY_START), L.month_end)
     series = reaction.pivot(reac, dates)
+    ad_imp, ad_spend, ad_clicks, ad_campaign = [None] * len(dates), [None] * len(dates), [None] * len(dates), [None] * len(dates)
+    if ads is not None and len(ads):
+        g = ads.groupby("date").agg(impressions=("impressions", "sum"), clicks=("clicks", "sum"),
+                                    spend=("spend", "sum"), campaign=("campaign", "first"))
+        for i, x in enumerate(dates):
+            if x in g.index:
+                ad_imp[i], ad_clicks[i] = int(g.loc[x, "impressions"]), int(g.loc[x, "clicks"])
+                ad_spend[i], ad_campaign[i] = int(g.loc[x, "spend"]), g.loc[x, "campaign"]
     promo_list = [{"id": p.promo_id, "name": p.name, "start": p.start.isoformat(), "end": p.end.isoformat(),
                    "rate": float(p.discount_rate), "desc": p.desc} for p in promos.itertuples()]
     month_avg = flavor.window_avg(brand_flavor, L.launch, L.month_end)
@@ -125,26 +134,32 @@ def build(tables: Tables | None = None) -> dict:
             fw = np.array([0 <= (x - L.launch).days < 7 for x in dates_m])
             dem = np.where(promo_mask, bl.base, q) if bl else q
             fw_ratio = float(dem[fw].mean()) / L.target_daily
+        w7 = [i for i, x in enumerate(dates) if d - dt.timedelta(days=6) <= x <= d]
+        imp7 = sum(ad_imp[i] or 0 for i in w7)
+        clk7 = sum(ad_clicks[i] or 0 for i in w7)
         kpis = [
-            {"k": "검색지수 (출시 전 한 달 대비)", "v": fmt.times(rs["last_x"]) if rs.get("last_x") else "-",
-             "d": f"지수 {rs['last']:.0f} · 정점 {fmt.md(dt.date.fromisoformat(rs['peak_date']))}" if "last" in rs else ""},
-            {"k": "블로그·카페 언급 (최근 7일)", "v": f"{fmt.n(rs['mentions_7d'])}건" if "mentions_7d" in rs else "-",
-             "d": f"출시 전 한 달의 {fmt.times(rs['mentions_7d'] / rs['mentions_pre_7d'])}"
-             if rs.get("mentions_pre_7d") else ""},
-            {"k": "긍정률 (최근 7일)", "v": fmt.pct(rs["positive_7d"]) if rs.get("positive_7d") is not None else "-",
-             "d": "블로그·카페 요약문 주제 분류"},
-            {"k": "첫 주 목표 대비 (맛 수요)",
-             "v": f"{fw_ratio:.2f}배" if fw_ratio else (f"{demand_ratio:.2f}배" if demand_ratio else "-"),
-             "d": "확정 (출시 첫 주)" if fw_ratio else ("첫 주 진행 중 · 잠정" if launched else f"목표 일평균 {fmt.n(L.target_daily)}개")},
             {"k": "누적 판매", "v": f"{fmt.n(cum)}개" if launched else "출시 전",
              "d": f"할인 효과 {fmt.pct(promo_inc / cum, 1)} 포함" if launched and bl else (
                  "할인 효과 분리 전" if launched else f"{fmt.md(L.launch)} 출시")},
+            {"k": "첫 주 목표 대비 (맛 수요)",
+             "v": f"{fw_ratio:.2f}배" if fw_ratio else (f"{demand_ratio:.2f}배" if demand_ratio else "-"),
+             "d": "출시 첫 주 확정" if fw_ratio else ("첫 주 진행 중" if launched else f"목표 일평균 {fmt.n(L.target_daily)}개")},
+            {"k": "검색지수 (출시 전 한 달 대비)", "v": fmt.times(rs["last_x"]) if rs.get("last_x") else "-",
+             "d": f"지수 {rs['last']:.0f} · 정점 {fmt.md(dt.date.fromisoformat(rs['peak_date']))}" if "last" in rs else ""},
+            {"k": "블로그 언급 (최근 7일)", "v": f"{fmt.n(rs['mentions_7d'])}건" if "mentions_7d" in rs else "-",
+             "d": f"출시 전 한 달의 {fmt.times(rs['mentions_7d'] / rs['mentions_pre_7d'])}"
+             if rs.get("mentions_pre_7d") else ""},
+            {"k": "긍정률 (최근 7일)", "v": fmt.pct(rs["positive_7d"]) if rs.get("positive_7d") is not None else "-",
+             "d": "블로그 요약문 기준"},
+            {"k": "광고 노출 (최근 7일)", "v": f"{imp7 / 10_000:,.0f}만 회" if imp7 else "-",
+             "d": f"클릭률 {fmt.pct(clk7 / imp7, 2)}" if imp7 else "집행 없음"},
             {"k": "반응 대비 판매 (전환)", "v": f"{conv['ratio']:.1f}" if conv else "-",
              "d": f"판매 {conv['sales_idx']:.0f} / 검색 {conv['search_idx']:.0f} (첫 주=100)" if conv else "출시 2주 차부터"},
         ]
         days.append({
             "date": d, "read": read_day(d), "gain_days": (L.current_method_read - read_day(d)).days,
-            "kpis": kpis, "monitor": cards.monitor_card(d, ctx), "_decisions": cards.decisions(d, ctx),
+            "kpis": kpis, "monitor": cards.monitor_card(d, ctx), "reaction_status": cards.reaction_status(d, ctx),
+            "_decisions": cards.decisions(d, ctx),
             "baseline": None if bl is None else {"base": bl.base.round(0), "lo": bl.lo.round(0), "hi": bl.hi.round(0),
                                                  "n_fit": bl.n_fit},
             "promos": promo_rows,
@@ -178,7 +193,9 @@ def build(tables: Tables | None = None) -> dict:
 
     out = {
         "meta": {
-            "title": "이달의 맛 실시간 반응 판독",
+            "title": "마케팅 판독 대시보드",
+            "product": {"name": L.flavor, "label": f"{L.launch.year}년 {L.launch.month}월 이달의 맛",
+                        "teaser": L.teaser, "launch": L.launch},
             "flavor": L.flavor, "parent_flavor": L.parent_flavor,
             "generated_at": dt.datetime.now().isoformat(timespec="seconds"),
             "provenance": {k: PROV_LABEL[v] for k, v in T.provenance.items()},
@@ -199,6 +216,7 @@ def build(tables: Tables | None = None) -> dict:
             "bra": series.get("naver_datalab.bra.search_index"),
             "trend": series.get("naver_datalab.trend.search_index"),
             "mentions": series.get("naver_blog.bra.mentions"),
+            "ad_impressions": ad_imp, "ad_spend": ad_spend, "ad_clicks": ad_clicks, "ad_campaign": ad_campaign,
             "sales": [float(q[dates_m.index(x)]) if x in dates_m else None for x in dates],
         },
         "promos": promo_list,

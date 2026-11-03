@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Readout } from "./types";
-import { TimeBar } from "./components/TimeBar";
-import { AlertFeed } from "./components/AlertFeed";
-import { Cards } from "./components/Cards";
-import { ReactionPanel } from "./components/ReactionPanel";
+import { TopBar } from "./components/TopBar";
+import { Kpis } from "./components/Kpis";
+import { Timeline } from "./components/Timeline";
+import { ReactionQuad } from "./components/ReactionQuad";
 import { FlavorTable } from "./components/FlavorTable";
 import { StorePanel } from "./components/StorePanel";
 import { PromoPanel } from "./components/PromoPanel";
-import { SchemaPanel } from "./components/SchemaPanel";
+import { AlertFeed } from "./components/AlertFeed";
 
 const STEP_MS = 1300; // 재생 속도: 하루당
 
@@ -39,9 +39,9 @@ export default function App() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: Readout) => {
         setData(d);
-        const want = hashDate() ?? d.meta.milestones.find((m) => m.label === "티저")?.date;
+        const want = hashDate() ?? d.meta.milestones.find((m) => m.label.startsWith("1주"))?.date;
         const i = d.days.findIndex((x) => x.date === want);
-        setCur(i >= 0 ? i : 0);
+        setCur(i >= 0 ? i : d.days.length - 1);
       })
       .catch((e) => setErr(String(e)));
   }, []);
@@ -65,48 +65,29 @@ export default function App() {
     setPlaying((p) => !p);
   };
 
-  if (err) return <div className="wrap"><div className="notice"><b>데이터를 못 읽었습니다.</b> {err} · 먼저 <code>make data</code></div></div>;
+  if (err) return <div className="wrap"><div className="empty">데이터를 불러오지 못했습니다. ({err})</div></div>;
   if (!data) return <div className="wrap"><div className="empty">불러오는 중…</div></div>;
 
   const day = data.days[cur];
-  const allMock = Object.values(data.meta.provenance_raw).every((p) => p === "mock");
   return (
-    <div className="wrap">
-      <header>
-        <div className="eyebrow">SDIC × 넥스트페이먼츠 산학 · 마케팅 AX PoC</div>
-        <h1>{data.meta.title}</h1>
-        <p className="sub">
-          판매, 광고, SNS 반응을 같은 날짜 축에 올려 매일 모니터링하고(튀는 신호는 그 날 알림), 매주 월요일 아침 결정 3축을 판독합니다.
-          2026년 3월 이달의 맛 「{data.meta.flavor}」 출시를 날짜 순서대로 다시 재생합니다.
-        </p>
-      </header>
-
-      <div className="notice" role="note">
-        <span className={`tag ${allMock ? "mock" : "api"}`}>{allMock ? "시연 데이터" : "일부 실데이터"}</span>
-        <div>
-          <b>{allMock ? "실제 데이터가 아닙니다." : "데이터 출처가 섞여 있습니다."}</b>{" "}
-          패널마다 배지로 출처를 표시합니다(본사 · 공개 API · 목). 반응 지표는 공개 API로 받을 수 있는 형식이고,
-          판매 목 데이터는 공개된 누적 판매(출시 15일 100만 개, 22일 142만 개)에 맞췄습니다.
+    <>
+      <TopBar data={data} cur={cur} playing={playing} onPick={(i) => { setPlaying(false); pick(i); }} onPlay={togglePlay} />
+      <div className="wrap">
+        <Kpis day={day} />
+        <div className="layout">
+          <main className="main">
+            <Timeline data={data} day={day} theme={theme} />
+            <div className="quads">
+              <ReactionQuad day={day} />
+              <FlavorTable day={day} />
+              <StorePanel data={data} day={day} />
+              <PromoPanel data={data} day={day} />
+            </div>
+          </main>
+          <AlertFeed alerts={data.alerts} day={day} />
         </div>
+        <footer>SDIC × 넥스트페이먼츠 산학 PoC · 화면의 수치는 시연용 예시 데이터입니다.</footer>
       </div>
-
-      <TimeBar data={data} cur={cur} playing={playing} onPick={(i) => { setPlaying(false); pick(i); }} onPlay={togglePlay} />
-
-      <div className="layout">
-        <main className="main">
-          <Cards day={day} data={data} />
-          <ReactionPanel data={data} day={day} theme={theme} />
-          <div className="grid2">
-            <FlavorTable data={data} day={day} />
-            <StorePanel data={data} day={day} />
-          </div>
-          <PromoPanel data={data} day={day} />
-        </main>
-        <AlertFeed alerts={data.alerts} day={day} />
-      </div>
-
-      <SchemaPanel data={data} />
-      <footer>{data.meta.assumptions} · 생성 {data.meta.generated_at.replace("T", " ")}</footer>
-    </div>
+    </>
   );
 }

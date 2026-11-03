@@ -14,7 +14,7 @@ import datetime as dt
 
 from ..config import LAUNCH, RULES
 from . import fmt
-from .alerts import PROMO_ACTION, TONE_RANK
+from .alerts import PROMO_ACTION, TONE_RANK, pick_for_card
 
 PILL = {"crit": ("crit", "즉시 대응"), "warn": ("warn", "대응 검토"), "good": ("good", "확산 활용"), "info": ("info", "관찰")}
 
@@ -51,6 +51,21 @@ def monitor_card(d: dt.date, c: dict) -> dict:
     return card("monitor", "reaction", "오늘의 모니터링", ("info", "관찰"),
                 "특이 신호 없음" if d >= LAUNCH.teaser else "출시 전 평소 수준",
                 [status, "검색·언급·주제·영상 신호를 매일 아침 모니터링", "할 일: 현행 유지"], ["reaction"])
+
+
+def reaction_status(d: dt.date, c: dict) -> dict:
+    """신제품 반응 패널 머리: 최근 3일 반응 알림 중 가장 급한 것, 없으면 상태 요약 (매일)."""
+    r = c["reaction"]
+    a = pick_for_card(c["alerts"], d, "reaction")
+    status = None
+    if r.get("last_x") is not None:
+        status = (f"검색지수 출시 전 한 달 평균의 {fmt.times(r['last_x'])}"
+                  + (f" · 긍정률 {fmt.pct(r['positive_7d'])}" if r.get("positive_7d") is not None else ""))
+    if a:
+        return card("reaction", "reaction", "신제품 반응", PILL[a["tone"]], a["title"],
+                    [f"할 일: {a['action']}", status], ["reaction"])
+    return card("reaction", "reaction", "신제품 반응", ("info", "안정"),
+                "특이 신호 없음" if d >= LAUNCH.teaser else "출시 전 평소 수준", [status], ["reaction"])
 
 
 def demand_card(d: dt.date, c: dict) -> dict:

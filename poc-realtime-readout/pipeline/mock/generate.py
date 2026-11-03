@@ -58,6 +58,15 @@ TOPICS = {
     "품절·재고": (0.03, 0.15), "양·사이즈": (0.05, 0.75), "매장·서비스": (0.06, 0.60),
 }
 
+# 광고 캠페인 (가정): (이름, 시작, 끝, 첫날 일 노출, 마지막 날 일 노출, 노출 1천 회당 비용(원), 클릭률)
+ADS = [
+    ("티저", D("2026-02-27"), D("2026-02-28"), 1_200_000, 1_400_000, 6_500, 0.011),
+    ("출시", D("2026-03-01"), D("2026-03-10"), 2_600_000, 1_100_000, 6_000, 0.013),
+    ("배라위크", D("2026-03-14"), D("2026-03-22"), 1_500_000, 1_200_000, 5_500, 0.009),
+    ("31데이", D("2026-03-29"), D("2026-03-31"), 1_000_000, 1_400_000, 5_500, 0.012),
+]
+AD_CHANNELS = {"유튜브": 0.45, "인스타그램": 0.35, "네이버": 0.20}
+
 VIDEOS = [  # (id, 채널, 제목, 게시일, 최종 조회수, 확산 속도)
     ("yt_off_teaser", "official", "공식 · 두바이에서 온 엄마는 외계인 티저", D("2026-02-27"), 120_000, 3),
     ("yt_off_launch", "official", "공식 · 출시 영상", D("2026-03-01"), 300_000, 4),
@@ -287,12 +296,23 @@ def main() -> dict:
     yt = pd.DataFrame(yv, columns=["date", "video_id", "channel_type", "title", "views"])
     yt["views"] = yt.groupby("video_id")["views"].cummax()
 
+    # 광고 집행 (대행사 리포트 형식: 노출·클릭·비용)
+    ad_rows = []
+    for name, a, b, imp0, imp1, cpm, ctr in ADS:
+        span = daterange(a, b)
+        for i, d in enumerate(span):
+            imp_day = imp0 + (imp1 - imp0) * (i / max(len(span) - 1, 1))
+            for ch, share in AD_CHANNELS.items():
+                imp = int(imp_day * share * (1 + rrng.normal(0, 0.05)))
+                ad_rows.append((d, name, ch, imp, int(imp * ctr * (1 + rrng.normal(0, 0.08))), int(imp / 1000 * cpm)))
+    ads = pd.DataFrame(ad_rows, columns=["date", "campaign", "channel", "impressions", "clicks", "spend"])
+
     promo_cal = pd.DataFrame([{k_: v for k_, v in p.items() if k_ != "lift"} for p in PROMOS])
 
     out = {
         "sales_daily": sales, "store_master": sm, "promo_calendar": promo_cal,
         "reaction_daily": reaction, "reaction_topics_daily": topics,
-        "youtube_videos_daily": yt, "store_reaction_daily": store_reaction,
+        "youtube_videos_daily": yt, "store_reaction_daily": store_reaction, "ad_daily": ads,
     }
     for name, df in out.items():
         df.to_csv(GENERATED / f"{name}.csv", index=False)

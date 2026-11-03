@@ -1,160 +1,178 @@
-/* 화면 순서: 날짜 슬라이더(재생) → 오늘의 판독 카드 4장 + 실시간 알림 → 4모듈 → 데이터 계약 */
+/* 마케팅 판독 대시보드: 상단 바(제품·기준일) → 핵심 지표 → [통합 타임라인 + 4분할] | [급한 것 + 알림]
+   색: 배라 로고 계열의 파랑(판매·기준)과 핑크(반응·강조)를 주색으로 */
 :root {
-  --bg: #f4f5f7; --surface: #ffffff; --surface-2: #f8f9fb; --ink: #141821; --ink-2: #4a5162; --muted: #7b8293; --line: #e2e5eb;
-  --s1: #2a78d6; --s2: #eb6834; --band: #f6ecd4; --band-ink: #8a6410; --dim: rgba(244, 245, 247, .72);
-  --good: #0ca30c; --warn: #fab219; --warn-ink: #a46f00; --crit: #d03b3b;
-  --good-bg: #e5f5e5; --warn-bg: #fdf2d8; --crit-bg: #fbe6e6; --info-bg: #e6f0fb;
-  --badge-api: #e6f0fb; --badge-api-ink: #1c5cab; --badge-mock: #f1ece4; --badge-mock-ink: #6b5a3e;
-  --badge-link: #ece9fb; --badge-link-ink: #4a3aa7; --badge-raw: #e5f5e5; --badge-raw-ink: #1d6b1d;
-  --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --blue: #1d4fb8; --pink: #e5007d;
+  --bg: #f4f6fb; --surface: #ffffff; --surface-2: #f6f8fd; --ink: #121a2b; --ink-2: #47506a; --muted: #7c859b; --line: #e3e7f1;
+  --s1: var(--blue); --s2: var(--pink); --s3: #9bb6ec; --trend: #a6adbf;
+  --band: #fde8f3; --band-ink: #b0306f; --dim: rgba(244, 246, 251, .74);
+  --good: #11934f; --warn: #f0a400; --warn-ink: #95660a; --crit: #d63333;
+  --good-bg: #e3f5ea; --warn-bg: #fdf1d6; --crit-bg: #fbe5e5; --info-bg: #e7eefb; --pink-bg: #fde8f3;
+  --bar-bg: #1d4fb8; --bar-ink: #ffffff; --bar-ink-2: #c9d7f6;
+  --font: "Pretendard Variable", "Pretendard", "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #111318; --surface: #1a1d24; --surface-2: #20242c; --ink: #eef0f4; --ink-2: #bcc2cf; --muted: #8c93a3; --line: #2c313b;
-    --s1: #3987e5; --s2: #d95926; --band: #3a3222; --band-ink: #e2b65c; --dim: rgba(17, 19, 24, .7); --warn-ink: var(--warn);
-    --good-bg: #16301a; --warn-bg: #3a2f14; --crit-bg: #3a1a1a; --info-bg: #172a42;
-    --badge-api: #172a42; --badge-api-ink: #9ec5f4; --badge-mock: #2f2a22; --badge-mock-ink: #d9c7a6;
-    --badge-link: #26223f; --badge-link-ink: #b8b0f2; --badge-raw: #16301a; --badge-raw-ink: #9ad89a;
+    --blue: #6f97ff; --pink: #ff5aae;
+    --bg: #0e1220; --surface: #161b2b; --surface-2: #1c2235; --ink: #edf0f7; --ink-2: #bcc3d4; --muted: #8b93a8; --line: #2a3145;
+    --s3: #3d5fa8; --trend: #6c7389; --band: #3a1f31; --band-ink: #ff9ccc; --dim: rgba(14, 18, 32, .72);
+    --good-bg: #133222; --warn-bg: #3a2f14; --crit-bg: #3a1a1c; --info-bg: #1a2850; --pink-bg: #3a1f31; --warn-ink: var(--warn);
+    --bar-bg: #13254f; --bar-ink-2: #9fb4e6;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #111318; --surface: #1a1d24; --surface-2: #20242c; --ink: #eef0f4; --ink-2: #bcc2cf; --muted: #8c93a3; --line: #2c313b;
-  --s1: #3987e5; --s2: #d95926; --band: #3a3222; --band-ink: #e2b65c; --dim: rgba(17, 19, 24, .7); --warn-ink: var(--warn);
-  --good-bg: #16301a; --warn-bg: #3a2f14; --crit-bg: #3a1a1a; --info-bg: #172a42;
-  --badge-api: #172a42; --badge-api-ink: #9ec5f4; --badge-mock: #2f2a22; --badge-mock-ink: #d9c7a6;
-  --badge-link: #26223f; --badge-link-ink: #b8b0f2; --badge-raw: #16301a; --badge-raw-ink: #9ad89a;
+  --blue: #6f97ff; --pink: #ff5aae;
+  --bg: #0e1220; --surface: #161b2b; --surface-2: #1c2235; --ink: #edf0f7; --ink-2: #bcc3d4; --muted: #8b93a8; --line: #2a3145;
+  --s3: #3d5fa8; --trend: #6c7389; --band: #3a1f31; --band-ink: #ff9ccc; --dim: rgba(14, 18, 32, .72);
+  --good-bg: #133222; --warn-bg: #3a2f14; --crit-bg: #3a1a1c; --info-bg: #1a2850; --pink-bg: #3a1f31; --warn-ink: var(--warn);
+  --bar-bg: #13254f; --bar-ink-2: #9fb4e6;
   color-scheme: dark;
 }
 * { box-sizing: border-box }
-body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.55; margin: 0 }
-.wrap { max-width: 1240px; margin: 0 auto; padding: 28px 16px 48px; display: grid; gap: 20px }
-h1, h2, h3 { text-wrap: balance; margin: 0 }
-.eyebrow { font-size: 12px; letter-spacing: .06em; color: var(--muted); font-weight: 600 }
-h1 { font-size: 28px; font-weight: 700; letter-spacing: -.01em }
-.sub { color: var(--ink-2); max-width: 70ch; margin: 6px 0 0 }
-.notice { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; color: var(--ink-2); font-size: 13px; display: flex; gap: 10px; align-items: flex-start }
-.notice b { color: var(--ink) }
-.tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap }
-.tag.api { background: var(--badge-api); color: var(--badge-api-ink) }
-.tag.mock { background: var(--badge-mock); color: var(--badge-mock-ink) }
-.tag.mixed { background: var(--badge-api); color: var(--badge-api-ink) }
-.tag.raw { background: var(--badge-raw); color: var(--badge-raw-ink) }
-.tag.link { background: var(--badge-link); color: var(--badge-link-ink) }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; min-width: 0 }
-.panel-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px }
-.panel-h h2 { font-size: 16px; font-weight: 700 }
-.panel-h .tags, .tags { display: flex; gap: 6px; flex-wrap: wrap }
-.q { font-size: 12px; color: var(--muted); margin-top: 2px }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 14px }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0 }
-.card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px }
-.card h3 { font-size: 14px; font-weight: 600; color: var(--ink-2) }
-.pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap }
-.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor }
-.pill.good { background: var(--good-bg); color: var(--good) } .pill.warn { background: var(--warn-bg); color: var(--warn-ink) }
-.pill.crit { background: var(--crit-bg); color: var(--crit) } .pill.info { background: var(--info-bg); color: var(--s1) }
-.card .head { font-size: 17px; font-weight: 700; line-height: 1.4 }
-.card ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 13px; display: grid; gap: 4px }
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px }
-.kpi { background: var(--surface-2); border-radius: 10px; padding: 10px 12px }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5; margin: 0 }
+h1, h2, h3 { margin: 0; text-wrap: balance }
+.wrap { max-width: 1480px; margin: 0 auto; padding: 16px 16px 40px; display: grid; gap: 16px }
+
+/* 상단 바 */
+.topbar { position: sticky; top: 0; z-index: 10; background: var(--bar-bg); color: var(--bar-ink); box-shadow: 0 2px 10px rgba(0, 0, 0, .18) }
+.tb-brand, .tb-date { max-width: 1480px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap }
+.tb-brand { justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, .12) }
+.tb-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap }
+.logo-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--pink); box-shadow: 8px 0 0 -1px #fff; align-self: center; margin-right: 6px }
+.tb-title h1 { font-size: 18px; font-weight: 800; letter-spacing: -.01em }
+.tb-sub { font-size: 12px; color: var(--bar-ink-2) }
+.tb-product { display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .18); border-radius: 999px; padding: 4px 12px; font-size: 13px }
+.tb-k { font-size: 11px; color: var(--bar-ink-2) }
+.play { font: inherit; font-size: 14px; width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--pink); color: #fff; cursor: pointer; flex: none }
+.play:focus-visible, .tb-marks button:focus-visible { outline: 2px solid #fff; outline-offset: 2px }
+.tb-now { min-width: 190px }
+.tb-day { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums }
+.tb-meta { font-size: 12px; color: var(--bar-ink-2) }
+.tb-slider { flex: 1; min-width: 260px; display: grid; gap: 6px }
+.tb-slider input[type="range"] { width: 100%; accent-color: var(--pink) }
+.tb-marks { display: flex; flex-wrap: wrap; gap: 6px }
+.tb-marks button { font: inherit; font-size: 12px; border: 1px solid rgba(255, 255, 255, .22); background: transparent; color: var(--bar-ink); border-radius: 999px; padding: 2px 10px; cursor: pointer; display: inline-flex; gap: 5px; align-items: baseline }
+.tb-marks button small { font-size: 11px; color: var(--bar-ink-2) }
+.tb-marks button.on { background: #fff; color: var(--blue); border-color: #fff; font-weight: 700 }
+.tb-marks button.on small { color: var(--blue) }
+
+/* 핵심 지표 */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px }
 .kpi .k { font-size: 12px; color: var(--muted) }
-.kpi .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums }
+.kpi .v { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em }
 .kpi .d { font-size: 12px; color: var(--ink-2) }
-.chartbox { position: relative; height: 210px }
-.chartlabel { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 12px; color: var(--ink-2); margin: 10px 0 4px }
+
+/* 레이아웃 */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start }
+.main { display: grid; gap: 16px; min-width: 0 }
+.quads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0 }
+.panel-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 10px; margin-bottom: 10px }
+.panel-h h2 { font-size: 16px; font-weight: 800 }
+.note { font-size: 12px; color: var(--muted) }
+.empty { color: var(--muted); font-size: 13px; padding: 12px 0 }
+.h3 { font-size: 13px; font-weight: 700; margin: 14px 0 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline }
+.quad { display: flex; flex-direction: column }
+
+/* 판독 (패널 머리) */
+.verdict { border-radius: 10px; background: var(--surface-2); border-left: 3px solid var(--blue); padding: 10px 12px; display: grid; gap: 3px; margin-bottom: 4px }
+.verdict.crit { border-left-color: var(--crit) } .verdict.warn { border-left-color: var(--warn) } .verdict.good { border-left-color: var(--good) }
+.v-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.v-note { font-size: 11px; color: var(--muted) }
+.v-head { font-size: 15px; font-weight: 800; line-height: 1.4 }
+.v-item { font-size: 12px; color: var(--ink-2) }
+.v-todo { font-size: 12px; color: var(--ink) }
+.v-todo b, .al-action b { color: var(--pink); font-weight: 800; margin-right: 6px }
+
+.pill { font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor }
+.pill.sm { font-size: 11px; padding: 1px 8px }
+.pill.good { background: var(--good-bg); color: var(--good) } .pill.warn { background: var(--warn-bg); color: var(--warn-ink) }
+.pill.crit { background: var(--crit-bg); color: var(--crit) } .pill.info { background: var(--info-bg); color: var(--blue) }
+.chip { font-size: 11px; padding: 1px 7px; border-radius: 6px; background: var(--surface-2); color: var(--ink-2); font-weight: 700; white-space: nowrap; margin-left: 4px }
+.chip.new, .chip.blue { background: var(--info-bg); color: var(--blue) } .chip.pink { background: var(--pink-bg); color: var(--pink) }
+.chip.warn { background: var(--warn-bg); color: var(--warn-ink) } .chip.crit { background: var(--crit-bg); color: var(--crit) } .chip.good { background: var(--good-bg); color: var(--good) }
+
+/* 통합 타임라인 */
+.legend { display: flex; gap: 12px; font-size: 12px; color: var(--ink-2) }
+.lane + .lane { margin-top: 4px }
+.lane-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12px; color: var(--ink-2); padding-left: 2px }
+.lane-h b { color: var(--ink); font-size: 12px; min-width: 52px }
+.chartbox { position: relative }
+.chartbox.r { height: 150px } .chartbox.a { height: 80px } .chartbox.s { height: 170px }
 .key { display: inline-flex; align-items: center; gap: 6px }
 .sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block }
 .sw.bar { height: 10px; width: 10px; border-radius: 2px }
 .sw.band { height: 10px; width: 14px; border-radius: 2px; background: var(--band) }
 .sw.range { height: 10px; width: 14px; border-radius: 2px; background: color-mix(in srgb, var(--muted) 25%, transparent) }
-.sw.dash { background: repeating-linear-gradient(90deg, var(--muted) 0 4px, transparent 4px 7px) }
-.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 20px }
-.tablewrap { overflow-x: auto }
-table { border-collapse: collapse; width: 100%; font-size: 13px }
-th, td { padding: 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums }
-th { font-size: 12px; color: var(--muted); font-weight: 600 }
-th:first-child, td:first-child, th.l, td.l { text-align: left }
-td.name { font-weight: 600 }
-td.why { white-space: normal; min-width: 180px; color: var(--ink-2); font-size: 12px }
-.up { color: var(--good); font-weight: 600 } .down { color: var(--crit); font-weight: 600 } .flat { color: var(--muted) }
-.chip { font-size: 11px; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); color: var(--ink-2); font-weight: 600; white-space: nowrap }
-.chip.new { background: var(--info-bg); color: var(--s1) } .chip.warn { background: var(--warn-bg); color: var(--warn-ink) }
-.chip.crit { background: var(--crit-bg); color: var(--crit) } .chip.good { background: var(--good-bg); color: var(--good) }
-.split { display: flex; height: 22px; border-radius: 6px; overflow: hidden; gap: 2px; margin: 6px 0 12px }
-.split div { height: 100% }
-.note { font-size: 12px; color: var(--muted) }
-.empty { color: var(--muted); font-size: 13px; padding: 14px 0 }
-.yt { display: grid; gap: 6px; margin-top: 14px }
-.yt .row { display: grid; grid-template-columns: 1fr auto; gap: 12px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--line) }
-.yt .row span:last-child { font-variant-numeric: tabular-nums; font-weight: 600 }
-.schema td { white-space: normal; text-align: left; vertical-align: top }
-.schema code { font-family: var(--mono); font-size: 12px }
-footer { font-size: 12px; color: var(--muted) }
-
-/* 판독 두 층 */
-.readout { display: grid; gap: 12px }
-.layer-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 10px }
-.layer-h h2 { font-size: 16px; font-weight: 700 }
-.layer-h + .card.wide, .readout .cards { margin-bottom: 6px }
-.card.wide { border-left: 3px solid var(--s1) }
-.readout .cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)) }
-
-/* 날짜 슬라이더 (상단 고정) */
-.timebar { position: sticky; top: 0; z-index: 5; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; display: grid; gap: 8px; box-shadow: 0 6px 16px -12px rgba(0, 0, 0, .35) }
-.tb-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap }
-.play { font: inherit; font-size: 15px; width: 42px; height: 42px; border-radius: 50%; border: 0; background: var(--s1); color: #fff; cursor: pointer; flex: none }
-.play:focus-visible { outline: 2px solid var(--s1); outline-offset: 3px }
-.tb-now { flex: 1; min-width: 180px }
-.tb-date { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums }
-.tb-gain { text-align: right }
-.tb-gain-v { font-size: 18px; font-weight: 700; color: var(--s1) }
-.timebar input[type="range"] { width: 100%; accent-color: var(--s1) }
-.tb-marks { display: flex; flex-wrap: wrap; gap: 6px }
-.tb-marks button { font: inherit; font-size: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 8px; padding: 4px 10px; cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline }
-.tb-marks button small { font-size: 11px; color: var(--muted) }
-.tb-marks button.on { border-color: var(--s1); background: var(--info-bg); color: var(--ink); font-weight: 600 }
-
-/* 본문 + 알림 피드 */
-.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start }
-.main { display: grid; gap: 20px; min-width: 0 }
-.feed { position: sticky; top: 150px; max-height: calc(100vh - 170px); overflow-y: auto }
-.feed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px }
-.al { border: 1px solid var(--line); border-left: 3px solid var(--muted); border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; font-size: 13px }
-.al.crit { border-left-color: var(--crit) } .al.warn { border-left-color: var(--warn) } .al.good { border-left-color: var(--good) } .al.info { border-left-color: var(--s1) }
-.al.today { background: var(--info-bg) }
-.al-top { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted) }
-.al-date { font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums }
-.al-mod { flex: 1 }
-.al-title { font-weight: 700; line-height: 1.4 }
-.al-detail { color: var(--ink-2) }
-.al-action { color: var(--ink) }
-.al-action b { font-weight: 700; margin-right: 4px }
-.al-gain { font-size: 11px; color: var(--s1); font-weight: 600 }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block }
-.dot.crit { background: var(--crit) } .dot.warn { background: var(--warn) } .dot.good { background: var(--good) } .dot.info { background: var(--s1) }
+.sw.dash { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px) }
 .sw.dotk { width: 8px; height: 8px; border-radius: 50%; background: var(--crit) }
 
-/* 모듈 1 하위 */
-.sub { margin-top: 18px; gap: 24px }
-.h3 { font-size: 14px; font-weight: 700; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline }
-.topics { display: grid; gap: 7px }
-.trow { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12px }
-.tname { font-weight: 600; color: var(--ink-2) }
-.tbar { height: 12px; border-radius: 3px; background: var(--crit); opacity: .85; min-width: 4px; overflow: hidden }
+/* 표 */
+.tablewrap { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: 13px }
+th, td { padding: 6px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums }
+th { font-size: 11px; color: var(--muted); font-weight: 700 }
+th.l, td.l { text-align: left }
+th:first-child, td:first-child { text-align: left }
+table.compact td { padding: 5px 6px }
+td.name { font-weight: 700 }
+td.why { white-space: normal; min-width: 150px; color: var(--ink-2); font-size: 12px }
+tr.hl td { background: var(--pink-bg) }
+tr.hl td.name { color: var(--pink) }
+.up { color: var(--good); font-weight: 700 } .down { color: var(--crit); font-weight: 700 } .flat { color: var(--muted) }
+
+/* 신제품 반응 */
+.topics { display: grid; gap: 6px }
+.trow { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12px }
+.tname { font-weight: 700; color: var(--ink-2) }
+.tbar { height: 11px; border-radius: 3px; background: var(--crit); opacity: .85; min-width: 4px; overflow: hidden }
 .tpos { height: 100%; background: var(--good) }
-.tval { white-space: nowrap; color: var(--ink-2); font-variant-numeric: tabular-nums; display: inline-flex; gap: 4px; align-items: center }
-.conv { margin-top: 16px }
-.convrow { display: grid; grid-template-columns: 64px minmax(0, 1fr) 36px; gap: 8px; align-items: center; font-size: 12px; color: var(--ink-2); margin: 4px 0 }
+.tval { white-space: nowrap; color: var(--ink-2); font-variant-numeric: tabular-nums; display: inline-flex; align-items: center }
+.yt { display: grid; gap: 2px }
+.yt .row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--line) }
+.yt .row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.yt .row span:last-child { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap }
+.yt .chip { margin: 0 4px 0 0 }
+.convrow { display: grid; grid-template-columns: 34px minmax(0, 1fr) 32px; gap: 8px; align-items: center; font-size: 12px; color: var(--ink-2); margin: 3px 0 }
 .cbar { height: 10px; border-radius: 0 4px 4px 0 }
 .convrow b { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink) }
-.panel-h .eyebrow, .card .eyebrow { font-size: 11px }
 
-@media (max-width: 1100px) {
+/* 판촉 */
+.fw { margin: 6px 0 4px }
+.split { display: flex; height: 14px; border-radius: 5px; overflow: hidden; gap: 2px; margin-top: 4px }
+.split div { height: 100% }
+
+/* 오른쪽: 급한 것 + 알림 */
+.side { display: grid; gap: 16px; position: sticky; top: 132px; max-height: calc(100vh - 148px); grid-template-rows: auto minmax(0, 1fr) }
+.feed { overflow-y: auto; min-height: 0 }
+.feed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px }
+.al { border: 1px solid var(--line); border-left: 3px solid var(--muted); border-radius: 8px; padding: 9px 11px; display: grid; gap: 3px; font-size: 12px }
+.al.crit { border-left-color: var(--crit) } .al.warn { border-left-color: var(--warn) } .al.good { border-left-color: var(--good) } .al.info { border-left-color: var(--blue) }
+.al.today { background: var(--pink-bg) }
+.al-top { display: flex; align-items: center; gap: 6px; color: var(--muted) }
+.al-date { font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums }
+.al-mod { flex: 1 }
+.al-title { font-weight: 800; font-size: 13px; line-height: 1.4 }
+.al-detail { color: var(--ink-2) }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block }
+.dot.crit { background: var(--crit) } .dot.warn { background: var(--warn) } .dot.good { background: var(--good) } .dot.info { background: var(--blue) }
+
+footer { font-size: 11px; color: var(--muted); text-align: center; padding-top: 4px }
+
+@media (max-width: 1180px) {
   .layout { grid-template-columns: minmax(0, 1fr) }
-  .feed { position: static; max-height: 380px; order: -1 }
+  .side { position: static; max-height: none; order: -1; grid-template-rows: auto }
+  .feed { max-height: 360px }
 }
-@media (max-width: 520px) { .timebar { position: static } .tb-gain { text-align: left } .tb-date { font-size: 17px } .trow { grid-template-columns: 64px minmax(0, 1fr) } .tval { grid-column: 2 } }
-@media (max-width: 520px) { h1 { font-size: 23px } .card .head { font-size: 16px } .chartbox { height: 190px } }
+@media (max-width: 860px) { .quads { grid-template-columns: minmax(0, 1fr) } }
+@media (max-width: 560px) {
+  .topbar { position: static }
+  .tb-sub { display: none }
+  .tb-product { border-radius: 10px; flex-wrap: wrap }
+  .tb-day { font-size: 16px }
+  .kpi .v { font-size: 19px }
+  .trow { grid-template-columns: 62px minmax(0, 1fr) } .tval { grid-column: 2 }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
