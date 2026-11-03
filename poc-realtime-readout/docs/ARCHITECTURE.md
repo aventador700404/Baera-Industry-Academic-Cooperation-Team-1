@@ -77,4 +77,4 @@ data/generated   ─┘   테이블별로 먼저 있는 곳          열·타입
 | 본사 데이터 연결 | `data/raw/*.csv` (열은 `schema.py`) |
 | 알림 문구를 자연어로 다듬기 | `alerts.py` 결과를 입력으로 문장만 LLM으로 생성 (판정은 규칙으로 유지) |
 
-CI(`.github/workflows/ci.yml`)는 PR마다 테스트 + JSON 빌드 + 웹 타입체크·빌드를 돌린다.
+CI(레포 루트의 `.github/workflows/poc-realtime-readout.yml`)는 이 폴더가 바뀔 때마다 테스트 + JSON 빌드 + 웹 타입체크·빌드를 돌린다.

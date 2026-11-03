@@ -1,0 +1,28 @@
+# PoC(poc-realtime-readout) 폴더가 바뀔 때만: 파이썬 테스트 + 판독 JSON 빌드 + 웹 타입체크·빌드
+name: poc-realtime-readout
+on:
+  pull_request:
+    paths: ["poc-realtime-readout/**", ".github/workflows/poc-realtime-readout.yml"]
+  push:
+    branches: [main]
+    paths: ["poc-realtime-readout/**", ".github/workflows/poc-realtime-readout.yml"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: poc-realtime-readout
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - run: python -m pipeline.mock.generate
+      - run: python -m pytest
+      - run: python -m pipeline.build
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: poc-realtime-readout/web/package-lock.json }
+      - run: npm ci
+        working-directory: poc-realtime-readout/web
+      - run: npm run build
+        working-directory: poc-realtime-readout/web
