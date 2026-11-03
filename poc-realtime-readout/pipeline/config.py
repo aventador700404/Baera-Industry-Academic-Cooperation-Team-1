@@ -44,24 +44,38 @@ class Launch:
 
 
 # ---------------------------------------------------------------- 판독 시점
-# 실시간 판독을 3월 출시 리플레이로 시연한다: 하루씩 '그 날까지의 데이터'로 다시 계산.
-# d일 데이터는 d+1일 아침에 본다고 가정.
+# 두 층으로 본다 (팀 장표 5·7번: 일 단위 모니터링 + 주 단위 판독).
+#   매일 모니터링: 반응 수집과 급등·급증 알림. d일 데이터는 d+1일 아침에 본다.
+#   주간 판독   : 매주 월요일 아침, 일요일까지의 데이터로 결정 3축(증산·재출시 / 판촉 / 매장 지원) 확정. 월말은 따로 한 번.
+# 시연은 3월 출시를 하루씩 재생한다.
 HISTORY_START = D("2026-02-01")            # 차트·기준 기간 시작 (티저 전 약 4주 = 출시 전 한 달)
 REPLAY_START = D("2026-02-20")             # 슬라이더 시작
 PRE_WEEK = (D("2026-02-22"), D("2026-02-28"))   # 맛 순위·잠식 비교용 출시 전 주간
-MILESTONES = (
-    ("티저", D("2026-02-27")), ("출시", D("2026-03-01")), ("1주", D("2026-03-07")),
-    ("2주", D("2026-03-14")), ("3주", D("2026-03-21")), ("4주", D("2026-03-28")), ("월말", D("2026-03-31")),
-)
+WEEKLY_READ_WEEKDAY = 0                    # 주간 판독 요일 (0 = 월요일). 그 전날까지의 데이터로 판독
 
 
 def asof_dates() -> list[dt.date]:
     return [REPLAY_START + dt.timedelta(days=i) for i in range((LAUNCH.month_end - REPLAY_START).days + 1)]
 
 
+def weekly_asofs() -> list[dt.date]:
+    """주간 판독에 쓰는 데이터 마감일: 판독 요일 전날들 + 월말."""
+    last_day = (WEEKLY_READ_WEEKDAY - 1) % 7
+    out = [d for d in asof_dates() if d.weekday() == last_day]
+    return out + ([LAUNCH.month_end] if LAUNCH.month_end not in out else [])
+
+
 def read_day(asof: dt.date) -> dt.date:
     """asof까지의 데이터를 보는 날 (다음 날 아침)."""
     return asof + dt.timedelta(days=1)
+
+
+# 슬라이더 바로가기: (이름, 데이터 마감일, 판독이면 True → 칩에 판독일 표시)
+MILESTONES = (
+    ("티저", D("2026-02-27"), False), ("출시", D("2026-03-01"), False),
+    ("1주 판독", D("2026-03-08"), True), ("2주 판독", D("2026-03-15"), True), ("3주 판독", D("2026-03-22"), True),
+    ("4주 판독", D("2026-03-29"), True), ("월말 판독", D("2026-03-31"), True),
+)
 
 
 @dataclass(frozen=True)

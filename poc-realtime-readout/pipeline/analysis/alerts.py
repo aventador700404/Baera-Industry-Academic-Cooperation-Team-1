@@ -41,6 +41,7 @@ class Alert:
     detail: str
     action: str
     gain_days: int       # 지금 방식(월말 정산 후 판독)보다 며칠 빨리 보는지
+    ref: str | None = None   # 대상 id (매장 알림이면 store_id)
 
 
 class Tracker:
@@ -205,12 +206,12 @@ class Tracker:
             return
         for r in st["alerts"]:
             if r["flag"] == "check":
-                self._emit(d, f"store_check:{r['store_id']}", 14, module="store", tone="crit",
+                self._emit(d, f"store_check:{r['store_id']}", 14, module="store", tone="crit", ref=r["store_id"],
                            title=f"매장 점검: {r['name']}",
                            detail=f"주변 언급 {r['sns_prev']}→{r['sns']}건(7일)인데 순위 {r['rank_prev']}→{r['rank']}위",
                            action="재고·운영 확인 → 품절이면 공지·대체 맛 안내, 긴급 배송")
             elif r["flag"] == "viral":
-                self._emit(d, f"store_viral:{r['store_id']}", 14, module="store", tone="good",
+                self._emit(d, f"store_viral:{r['store_id']}", 14, module="store", tone="good", ref=r["store_id"],
                            title=f"바이럴 매장: {r['name']}",
                            detail=f"주변 언급 {r['sns_prev']}→{r['sns']}건(7일), 순위 {r['rank_prev']}→{r['rank']}위",
                            action="재고 선배치, 해당 매장 언급 콘텐츠를 공식 채널에서 확산")

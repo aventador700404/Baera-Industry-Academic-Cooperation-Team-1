@@ -10,7 +10,7 @@ export interface Alert {
 }
 
 export interface Card {
-  key: string; module: Module; title: string;
+  key: "monitor" | "demand" | "store" | "promo"; module: Module; title: string;
   pill: { tone: Tone; label: string };
   head: string; items: string[];
   tags: ("sales" | "reaction" | "cost")[];
@@ -46,7 +46,12 @@ export interface TopicRow {
 export interface Day {
   date: string; read: string; gain_days: number;
   kpis: Kpi[];
-  cards: Card[];
+  monitor: Card;                       // 매일 모니터링
+  weekly: {                            // 가장 최근 주간 판독 (월요일 아침, 일요일까지의 데이터)
+    asof: string; read: string; next_read: string | null; gain_days: number;
+    cards: Card[]; new_alerts: number;
+  } | null;
+  first_weekly_read: string | null;
   baseline: { base: number[]; lo: number[]; hi: number[]; n_fit: number } | null;
   promos: PromoRow[];
   first_week: { total: number; promo: number; demand: number; promo_share: number } | null;
@@ -65,7 +70,8 @@ export interface Readout {
     rules: { roi_keep: number; roi_adjust: number; unit_price: number; target_daily: number };
     keyword_labels: Record<string, string>;
     current_read: string;
-    milestones: { label: string; date: string }[];
+    milestones: { label: string; date: string; show: string }[];
+    weekly_reads: { asof: string; read: string }[];
   };
   dates: string[];
   launch_dates: string[];
