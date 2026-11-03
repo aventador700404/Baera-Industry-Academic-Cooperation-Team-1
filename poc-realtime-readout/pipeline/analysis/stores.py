@@ -26,7 +26,7 @@ def _window(df: pd.DataFrame, start: dt.date, end: dt.date, col: str) -> pd.Seri
 
 
 def table(store_daily: pd.DataFrame, sm: pd.DataFrame, sns: pd.DataFrame | None, asof: dt.date,
-          prev_flags: dict[str, str] | None = None, top: int = 5) -> dict:
+          prev_flags: dict[str, str] | None = None, top: int = 5, watch: set[str] | None = None) -> dict:
     """store_daily: date, store_id, qty (전 맛 합계). sns: date, store_id, mentions."""
     s1, s0 = asof - WEEK, asof - WEEK - dt.timedelta(days=7)
     e0 = asof - dt.timedelta(days=7)
@@ -88,4 +88,6 @@ def table(store_daily: pd.DataFrame, sm: pd.DataFrame, sns: pd.DataFrame | None,
         "flags": flagged,
         "alerts": [row(sid, df.loc[sid]) for sid in flagged],
         "riser": row(df["delta"].idxmax(), df.loc[df["delta"].idxmax()]),
+        # 주간 판독용: 이번 주에 알림이 떴던 매장의 판독 시점 상태
+        "watch": {sid: row(sid, df.loc[sid]) for sid in (watch or set()) if sid in df.index},
     }

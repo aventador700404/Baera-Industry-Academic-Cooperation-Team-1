@@ -6,7 +6,8 @@ interface Props {
   onPick: (i: number) => void; onPlay: () => void;
 }
 
-// 공통 날짜 슬라이더: 하루 = 그 날 밤까지의 데이터를 다음 날 아침에 본 판독. ▶ 로 3월 출시를 날짜 순서대로 재생.
+// 공통 날짜 슬라이더: 하루 = 그 날 밤까지의 데이터를 다음 날 아침에 본 모니터링. ▶ 로 3월 출시를 날짜 순서대로 재생.
+// 칩: 티저·출시는 그 날, 판독은 월요일 판독일을 표시.
 export function TimeBar({ data, cur, playing, onPick, onPlay }: Props) {
   const day = data.days[cur];
   const idx = (d: string) => data.days.findIndex((x) => x.date === d);
@@ -18,8 +19,11 @@ export function TimeBar({ data, cur, playing, onPick, onPlay }: Props) {
           {playing ? "❚❚" : "▶"}
         </button>
         <div className="tb-now">
-          <div className="tb-date">{mdw(day.read)} 아침 판독</div>
-          <div className="note">{md(day.date)}까지 쌓인 데이터 · 오늘 새 알림 {newCount}건</div>
+          <div className="tb-date">{mdw(day.read)} 아침</div>
+          <div className="note">
+            {md(day.date)}까지 쌓인 데이터 · 오늘 새 알림 {newCount}건
+            {day.weekly && ` · 주간 판독 기준 ${md(day.weekly.read)}`}
+          </div>
         </div>
         <div className="tb-gain">
           <div className="note">지금 방식(월말 정산 후 {md(data.meta.current_read)})보다</div>
@@ -36,7 +40,7 @@ export function TimeBar({ data, cur, playing, onPick, onPlay }: Props) {
           if (i < 0) return null;
           return (
             <button type="button" key={m.label} className={i === cur ? "on" : ""} onClick={() => onPick(i)}>
-              {m.label}<small>{md(m.date)}</small>
+              {m.label}<small>{md(m.show)}</small>
             </button>
           );
         })}

@@ -1,9 +1,12 @@
-"""그날 판독 → 마케팅이 할 일. 4모듈에 하나씩.
+"""판독 → 마케팅이 할 일. 두 층.
 
-  반응 대응      (모듈 1 신제품 반응)   최근 3일 알림 중 가장 급한 것, 없으면 반응 상태 요약
-  증산 · 재출시  (모듈 2 맛별 판매)     할인 효과를 뺀 맛 수요 vs 목표 (첫 주 목표 대비)
-  매장 지원      (모듈 3 매장 순위)     주변 반응으로 판독한 점검·바이럴 매장
-  판촉 조정      (모듈 4 판촉 효과)     끝난 행사의 증분 ROI 판정
+매일 모니터링 (카드 1장, 매일 바뀜)
+  오늘의 모니터링  최근 3일 알림 중 가장 급한 것(모든 모듈), 없으면 반응 상태 요약.
+                  품절처럼 급한 건 주간 판독을 기다리지 않고 여기서 바로 뜬다.
+주간 판독 (카드 3장, 매주 월요일 아침 일요일까지의 데이터로 확정 — 팀 장표 7번의 결정 3축)
+  증산 · 재출시  (모듈 2 맛별 판매)  할인 효과를 뺀 맛 수요 vs 목표 (첫 주 목표 대비)
+  매장 지원      (모듈 3 매장 순위)  주변 반응으로 판독한 점검·바이럴 매장
+  판촉 조정      (모듈 4 판촉 효과)  끝난 행사의 증분 ROI 판정
 """
 from __future__ import annotations
 
@@ -11,7 +14,7 @@ import datetime as dt
 
 from ..config import LAUNCH, RULES
 from . import fmt
-from .alerts import PROMO_ACTION, pick_for_card
+from .alerts import PROMO_ACTION, TONE_RANK
 
 PILL = {"crit": ("crit", "즉시 대응"), "warn": ("warn", "대응 검토"), "good": ("good", "확산 활용"), "info": ("info", "관찰")}
 
@@ -25,19 +28,27 @@ def _d(s: str) -> dt.date:
     return dt.date.fromisoformat(s)
 
 
-def reaction_card(d: dt.date, c: dict) -> dict:
+def _most_urgent(alerts: list[dict], d: dt.date, days: int = 3) -> dict | None:
+    recent = [a for a in alerts if 0 <= (d - _d(a["date"])).days < days]
+    if not recent:
+        return None
+    return sorted(recent, key=lambda a: (TONE_RANK[a["tone"]], -_d(a["date"]).toordinal()))[0]
+
+
+def monitor_card(d: dt.date, c: dict) -> dict:
     r = c["reaction"]
     status = None
     if r.get("last_x") is not None:
         status = (f"검색지수 출시 전 한 달 평균의 {fmt.times(r['last_x'])}"
                   + (f" (정점 대비 {fmt.pct(r['from_peak'])})" if d > LAUNCH.launch and r.get("from_peak") else "")
                   + (f" · 긍정률 {fmt.pct(r['positive_7d'])}" if r.get("positive_7d") is not None else ""))
-    a = pick_for_card(c["alerts"], d, "reaction")
+    a = _most_urgent(c["alerts"], d)
     if a:
         when = "오늘" if a["date"] == d.isoformat() else fmt.md(_d(a["date"]))
-        return card("reaction", "reaction", "반응 대응", PILL[a["tone"]], a["title"],
-                    [f"{when} 감지 · {a['detail']}", f"할 일: {a['action']}", status], ["reaction"])
-    return card("reaction", "reaction", "반응 대응", ("info", "관찰"),
+        return card("monitor", a["module"], "오늘의 모니터링", PILL[a["tone"]], a["title"],
+                    [f"{when} 감지 · {a['detail']}", f"할 일: {a['action']}", status],
+                    ["reaction"] if a["module"] == "reaction" else ["sales", "reaction"])
+    return card("monitor", "reaction", "오늘의 모니터링", ("info", "관찰"),
                 "특이 신호 없음" if d >= LAUNCH.teaser else "출시 전 평소 수준",
                 [status, "검색·언급·주제·영상 신호를 매일 아침 판독", "할 일: 현행 유지"], ["reaction"])
 
@@ -85,33 +96,43 @@ def demand_card(d: dt.date, c: dict) -> dict:
 
 
 def store_card(d: dt.date, c: dict) -> dict:
+    """주간 판독: 이번 주(지난 판독 이후)에 뜬 매장 알림을 모아 판독 시점 상태와 같이 본다."""
     title = "매장 지원"
     st = c["stores"]
     if st is None:
         return card("store", "store", title, ("info", "첫 주 이후"), "출시 7일이 지나면 매장 순위 변화가 쌓임",
                     ["주변 언급↑ 판매↓ 매장 → 품절·운영 점검", "주변 언급↑ 판매↑ 매장 → 재고 선배치·콘텐츠 확산"],
                     ["sales", "reaction"])
-    checks = [r for r in st["alerts"] if r["flag"] == "check"]
-    virals = [r for r in st["alerts"] if r["flag"] == "viral"]
+    week = [a for a in c.get("week_alerts", []) if a["module"] == "store"]
+    checks = [a for a in week if a["kind"] == "store_check"]
+    virals = [a for a in week if a["kind"] == "store_viral"]
+
+    def now(a: dict) -> str | None:
+        r = st.get("watch", {}).get(a.get("ref"))
+        return (f"판독 시점: 순위 {fmt.n(r['rank_prev'])}→{fmt.n(r['rank'])}위(7일 전 대비), 주변 언급 {r['sns']}건(7일)"
+                if r else None)
+
     items = []
     if checks:
         a = checks[0]
-        pill, head = ("crit", "점검 우선"), f"{a['name']}: 반응↑ 판매↓"
-        items += [f"주변 언급 {a['sns_prev']}→{a['sns']}건(7일)인데 순위 {fmt.n(a['rank_prev'])}→{fmt.n(a['rank'])}위",
-                  "할 일: 재고·운영 확인 → 품절이면 공지·대체 맛 안내"]
+        name = a["title"].split(": ", 1)[-1]
+        pill = ("crit", "점검 우선")
+        head = f"이번 주 점검 신호 {len(checks)}곳: {name}" if len(checks) > 1 else f"{name}: 반응↑ 판매↓"
+        items += [f"{fmt.md(_d(a['date']))} 감지 · {a['detail']}", now(a),
+                  "할 일: 재고·운영 확인 → 품절이면 공지·대체 맛 안내, 다음 맛 초도 배분에 반영"]
+        if virals:
+            items.append(f"바이럴 매장도 있음: {virals[0]['title'].split(': ', 1)[-1]}")
     elif virals:
         a = virals[0]
-        pill, head = ("good", "확산 지원"), f"{a['name']}: 반응↑ 판매↑"
-        items += [f"주변 언급 {a['sns_prev']}→{a['sns']}건(7일), 순위 {fmt.n(a['rank_prev'])}→{fmt.n(a['rank'])}위",
+        name = a["title"].split(": ", 1)[-1]
+        pill, head = ("good", "확산 지원"), f"{name}: 반응↑ 판매↑"
+        items += [f"{fmt.md(_d(a['date']))} 감지 · {a['detail']}", now(a),
                   "할 일: 재고 선배치, 매장 언급 콘텐츠를 공식 채널에서 확산"]
     else:
         a = st["riser"]
-        pill, head = ("info", "관찰"), "반응과 연결된 매장 신호 없음"
+        pill, head = ("info", "관찰"), "이번 주 반응과 연결된 매장 신호 없음"
         items.append(f"가장 많이 오른 매장: {a['name']} ({fmt.n(a['rank_prev'])}→{fmt.n(a['rank'])}위), "
                      + (a["why"] if a.get("why") else "주변 반응 변화 없음"))
-    if checks and virals:
-        v = virals[0]
-        items.append(f"바이럴 매장도 있음: {v['name']} (언급 {v['sns_prev']}→{v['sns']}건)")
     return card("store", "store", title, pill, head, items, ["sales", "reaction"])
 
 
@@ -142,5 +163,6 @@ def promo_card(d: dt.date, c: dict) -> dict:
                 f"{p['name']} 증분 {fmt.pct(p['inc_pct'])}, 증분 ROI {p['roi']:.2f}", items, ["sales", "cost"])
 
 
-def build(d: dt.date, c: dict) -> list[dict]:
-    return [reaction_card(d, c), demand_card(d, c), store_card(d, c), promo_card(d, c)]
+def decisions(d: dt.date, c: dict) -> list[dict]:
+    """주간 판독의 결정 3축."""
+    return [demand_card(d, c), store_card(d, c), promo_card(d, c)]

@@ -76,7 +76,7 @@ export default function App() {
         <div className="eyebrow">SDIC × 넥스트페이먼츠 산학 · 마케팅 AX PoC</div>
         <h1>{data.meta.title}</h1>
         <p className="sub">
-          판매, 광고, SNS 반응을 같은 날짜 축에 올려 매일 아침 판독하고, 튀는 신호는 그 날 바로 알림으로 띄웁니다.
+          판매, 광고, SNS 반응을 같은 날짜 축에 올려 매일 모니터링하고(튀는 신호는 그 날 알림), 매주 월요일 아침 결정 3축을 판독합니다.
           2026년 3월 이달의 맛 「{data.meta.flavor}」 출시를 날짜 순서대로 다시 재생합니다.
         </p>
       </header>
@@ -94,7 +94,7 @@ export default function App() {
 
       <div className="layout">
         <main className="main">
-          <Cards cards={day.cards} data={data} />
+          <Cards day={day} data={data} />
           <ReactionPanel data={data} day={day} theme={theme} />
           <div className="grid2">
             <FlavorTable data={data} day={day} />

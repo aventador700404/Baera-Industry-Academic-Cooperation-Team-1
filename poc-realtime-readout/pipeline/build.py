@@ -15,7 +15,8 @@ import numpy as np
 from .analysis import alerts as alerts_mod
 from .analysis import cards, flavor, fmt, promo, reaction, stores
 from .analysis.baseline import estimate_dow, fit_baseline
-from .config import (HISTORY_START, LAUNCH, MILESTONES, RULES, WEB_OUT, asof_dates, assumptions_text, read_day)
+from .config import (HISTORY_START, LAUNCH, MILESTONES, RULES, WEB_OUT, asof_dates, assumptions_text, read_day,
+                     weekly_asofs)
 from .io import Tables, load_all
 from .schema import TABLES
 
@@ -92,10 +93,16 @@ def build(tables: Tables | None = None) -> dict:
         rs = reaction.summary(series, dates, d)
         conv = reaction.conversion(dates_m, q, series, dates, d)
 
+        # 이번 주(지난 주간 판독 이후) 알림 — 주간 판독 카드가 주중에 뜬 신호를 놓치지 않게
+        prev_reads = [w for w in weekly_asofs() if w < d]
+        week_from = prev_reads[-1] if prev_reads else d - dt.timedelta(days=7)
+        week_alerts = [a for a in tracker.items if week_from.isoformat() < a.date <= d.isoformat()]
+        watch = {a.ref for a in week_alerts if a.ref}
+
         st = None
         if d >= L.launch + dt.timedelta(days=6):
             recent = {sid: "check" for sid, seen in check_seen.items() if (d - seen).days <= 14}
-            st = stores.table(store_daily, sm, sns, d, prev_flags=recent)
+            st = stores.table(store_daily, sm, sns, d, prev_flags=recent, watch=watch)
             for sid, f in st["flags"].items():
                 if f == "check":
                     check_seen[sid] = d
@@ -104,8 +111,13 @@ def build(tables: Tables | None = None) -> dict:
                 "conversion": conv}
         tracker.step(d, snap)
         alerts_now = tracker.upto(d)
+        # 오늘 뜬 매장 알림도 이번 주 목록에 포함 (판독 시점 상태도 같이)
+        week_alerts = [a for a in tracker.upto(d) if week_from.isoformat() < a["date"] <= d.isoformat()]
+        new_refs = {a["ref"] for a in week_alerts if a.get("ref")} - watch
+        if st is not None and new_refs:
+            st["watch"].update(stores.table(store_daily, sm, sns, d, watch=new_refs)["watch"])
 
-        ctx = {"reaction": rs, "alerts": alerts_now, "cum": cum, "sales_avg": sales_avg, "demand_avg": demand_avg,
+        ctx = {"reaction": rs, "alerts": alerts_now, "week_alerts": week_alerts, "cum": cum, "sales_avg": sales_avg, "demand_avg": demand_avg,
                "demand_ratio": demand_ratio, "baseline_ready": bl is not None, "cannib": cannib,
                "promos": promo_rows, "stores": st, "month_avg": float(q.mean()), "month_rank": month_rank}
         fw_ratio = None
@@ -132,7 +144,7 @@ def build(tables: Tables | None = None) -> dict:
         ]
         days.append({
             "date": d, "read": read_day(d), "gain_days": (L.current_method_read - read_day(d)).days,
-            "kpis": kpis, "cards": cards.build(d, ctx),
+            "kpis": kpis, "monitor": cards.monitor_card(d, ctx), "_decisions": cards.decisions(d, ctx),
             "baseline": None if bl is None else {"base": bl.base.round(0), "lo": bl.lo.round(0), "hi": bl.hi.round(0),
                                                  "n_fit": bl.n_fit},
             "promos": promo_rows,
@@ -144,6 +156,25 @@ def build(tables: Tables | None = None) -> dict:
             "youtube": reaction.youtube_top(yt, d),
             "conversion": conv,
         })
+
+    # 주간 판독: 각 날짜에는 가장 최근 판독(월요일 아침, 일요일까지의 데이터)의 결정 카드를 붙인다
+    reads = weekly_asofs()
+    by_date = {x["date"]: x for x in days}
+    for x in days:
+        d = x["date"]
+        past = [w for w in reads if w <= d]
+        later = [w for w in reads if w > d]
+        decisions = {w: by_date[w]["_decisions"] for w in past}
+        x["weekly"] = None if not past else {
+            "asof": past[-1], "read": read_day(past[-1]),
+            "next_read": read_day(later[0]) if later else None,
+            "gain_days": (L.current_method_read - read_day(past[-1])).days,
+            "cards": decisions[past[-1]],
+            "new_alerts": sum(1 for a in tracker.items if past[-1].isoformat() < a.date <= d.isoformat()),
+        }
+        x["first_weekly_read"] = read_day(reads[0]) if reads else None
+    for x in days:
+        x.pop("_decisions")
 
     out = {
         "meta": {
@@ -158,7 +189,9 @@ def build(tables: Tables | None = None) -> dict:
                       "unit_price": L.unit_price, "target_daily": L.target_daily},
             "keyword_labels": L.keyword_labels,
             "current_read": L.current_method_read,
-            "milestones": [{"label": lb, "date": d} for lb, d in MILESTONES],
+            "milestones": [{"label": lb, "date": d, "show": read_day(d) if is_read else d}
+                           for lb, d, is_read in MILESTONES],
+            "weekly_reads": [{"asof": w, "read": read_day(w)} for w in weekly_asofs()],
         },
         "dates": dates,
         "launch_dates": dates_m,
