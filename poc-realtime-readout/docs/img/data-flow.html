@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<style>
+:root{--navy:#0B2A5B;--navy-t:#EEF2F8;--ink:#1F2328;--sub:#5F6670;--line:#C9CDD3;--teal:#0F6E56;--teal-bg:#E1F5EE;--teal-line:#1D9E75;--gray-bg:#F1EFE8;--gray-line:#888780}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1600px;height:600px;position:relative;background:#fff;font-family:'Noto Sans CJK KR','Noto Sans CJK JP',sans-serif;color:var(--ink)}
+.a{position:absolute}
+.stage{height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--navy);border:1.5px solid var(--navy);background:#fff}
+.stage.on{background:var(--navy);color:#fff}
+.src{height:46px;border-radius:6px;padding:4px 12px;display:flex;flex-direction:column;justify-content:center;width:270px}
+.src b{font-size:14px}
+.src span{font-size:12px;color:var(--sub)}
+.api{background:var(--teal-bg);border:1px solid var(--teal-line)} .api b{color:var(--teal)}
+.lnk{background:var(--gray-bg);border:1px solid var(--gray-line)}
+.inn{background:var(--gray-bg);border:1.5px dashed var(--gray-line)}
+.step{display:flex;gap:10px;align-items:flex-start;width:214px}
+.num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.step b{display:block;font-size:14.5px;color:var(--navy)}
+.step span{display:block;font-size:12px;color:var(--sub);line-height:1.45}
+.tbl{border:1px solid var(--line);border-radius:8px;background:#fff;padding:14px}
+.tbl h4{font-size:15px;color:var(--navy)}
+.tbl small{display:block;font-size:12px;color:var(--sub);margin:2px 0 12px}
+.tr{display:flex;align-items:center;gap:8px;height:34px;font-size:13.5px;border-top:1px solid #EDEFF2}
+.mk{width:12px;height:12px;border-radius:3px;flex:none}
+.mk.api{background:var(--teal-bg);border:1px solid var(--teal-line)}
+.mk.lnk{background:var(--gray-bg);border:1px solid var(--gray-line)}
+.mk.inn{background:var(--gray-bg);border:1.5px dashed var(--gray-line)}
+.eng{border:1.5px solid var(--navy);border-radius:10px;background:#fff}
+.lane{font-size:13px;font-weight:700;color:var(--navy);display:flex;justify-content:space-between;width:408px}
+.lane span{font-weight:500;color:var(--sub);font-size:12px}
+.box{height:90px;border-radius:7px;background:var(--navy-t);border:1px solid #C7D2E3;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}
+.box b{font-size:14px;color:var(--navy)}
+.box span{font-size:12px;color:var(--ink);line-height:1.45;margin-top:3px}
+.ver{border:1.5px dashed #9AA6BA;border-radius:7px;padding:8px 12px;display:flex;flex-direction:column;justify-content:center}
+.ver b{font-size:13.5px;color:var(--navy)} .ver span{font-size:12px;color:var(--sub)}
+.out{height:90px;border-radius:7px;border:1.5px solid var(--navy);padding:10px 12px;display:flex;flex-direction:column;justify-content:center;width:180px}
+.out b{font-size:14px;color:var(--navy)} .out span{font-size:12px;color:var(--ink);line-height:1.45;margin-top:3px}
+.leg{font-size:13px;color:var(--sub);display:flex;gap:22px;align-items:center}
+.leg i{display:inline-block;width:16px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+</style></head><body>
+<svg class="a" style="left:0;top:0" width="1600" height="600" viewBox="0 0 1600 600">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" fill="#0B2A5B"/></marker>
+    <marker id="at" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" fill="#1D9E75"/></marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" fill="#888780"/></marker>
+  </defs>
+  <path d="M372 84 L612 245 L612 385 L372 546 Z" fill="#EEF2F8" stroke="#0B2A5B" stroke-width="1.5" stroke-linejoin="round"/>
+  <g stroke-width="1.4" fill="none">
+    <line x1="312" y1="107" x2="368" y2="107" stroke="#1D9E75" marker-end="url(#at)"/>
+    <line x1="312" y1="159" x2="368" y2="159" stroke="#1D9E75" marker-end="url(#at)"/>
+    <line x1="312" y1="211" x2="368" y2="211" stroke="#1D9E75" marker-end="url(#at)"/>
+    <line x1="312" y1="263" x2="368" y2="263" stroke="#888780" marker-end="url(#ag)"/>
+    <line x1="312" y1="315" x2="368" y2="315" stroke="#888780" marker-end="url(#ag)"/>
+    <line x1="312" y1="367" x2="368" y2="367" stroke="#888780" marker-end="url(#ag)"/>
+    <line x1="312" y1="419" x2="368" y2="419" stroke="#888780" stroke-dasharray="4 3" marker-end="url(#ag)"/>
+    <line x1="312" y1="471" x2="368" y2="471" stroke="#888780" stroke-dasharray="4 3" marker-end="url(#ag)"/>
+    <line x1="312" y1="523" x2="368" y2="523" stroke="#888780" stroke-dasharray="4 3" marker-end="url(#ag)"/>
+    <line x1="614" y1="315" x2="646" y2="315" stroke="#0B2A5B" marker-end="url(#ar)"/>
+    <line x1="862" y1="169" x2="896" y2="169" stroke="#1D9E75" marker-end="url(#at)"/>
+    <line x1="862" y1="311" x2="896" y2="311" stroke="#888780" stroke-dasharray="4 3" marker-end="url(#ag)"/>
+    <line x1="1182" y1="169" x2="1198" y2="169" stroke="#0B2A5B" marker-end="url(#ar)"/>
+    <line x1="1040" y1="311" x2="1056" y2="311" stroke="#0B2A5B" marker-end="url(#ar)"/>
+    <line x1="1182" y1="311" x2="1198" y2="311" stroke="#0B2A5B" marker-end="url(#ar)"/>
+    <line x1="1342" y1="169" x2="1376" y2="169" stroke="#0B2A5B" marker-end="url(#ar)"/>
+    <line x1="1342" y1="311" x2="1376" y2="311" stroke="#0B2A5B" marker-end="url(#ar)"/>
+    <line x1="1342" y1="418" x2="1376" y2="418" stroke="#0B2A5B" marker-end="url(#ar)"/>
+  </g>
+</svg>
+
+<div class="a stage" style="left:40px;top:28px;width:270px">흩어진 데이터</div>
+<div class="a stage on" style="left:372px;top:28px;width:240px">한 곳에 모으기</div>
+<div class="a stage" style="left:650px;top:28px;width:212px">하나의 표</div>
+<div class="a stage on" style="left:900px;top:28px;width:442px">판독 엔진</div>
+<div class="a stage" style="left:1380px;top:28px;width:180px">결과</div>
+
+<div class="a src api" style="left:40px;top:84px"><b>네이버 데이터랩</b><span>검색 상대지수 0~100, 일별</span></div>
+<div class="a src api" style="left:40px;top:136px"><b>네이버 블로그·카페</b><span>글 제목·요약·작성일</span></div>
+<div class="a src api" style="left:40px;top:188px"><b>유튜브</b><span>영상 조회수, 댓글 작성일</span></div>
+<div class="a src lnk" style="left:40px;top:240px"><b>인스타그램</b><span>공식·경쟁 계정 게시물 반응</span></div>
+<div class="a src lnk" style="left:40px;top:292px"><b>공식 채널 분석</b><span>공식 게시물 도달·노출</span></div>
+<div class="a src lnk" style="left:40px;top:344px"><b>광고 성과</b><span>캠페인별 노출·클릭·비용</span></div>
+<div class="a src inn" style="left:40px;top:396px"><b>POS 판매</b><span>매장 × 맛 거래 기록</span></div>
+<div class="a src inn" style="left:40px;top:448px"><b>매장 목록</b><span>지점·지역·가맹/직영</span></div>
+<div class="a src inn" style="left:40px;top:500px"><b>행사 캘린더</b><span>기간·할인율·분담 비율</span></div>
+
+<div class="a step" style="left:394px;top:226px"><div class="num">1</div><div><b>매일 수집</b><span>API 키, 권한, 본사 파일로 가져옴</span></div></div>
+<div class="a step" style="left:394px;top:282px"><div class="num">2</div><div><b>형식 맞추기</b><span>날짜 × 매장 × 맛, 하루 단위</span></div></div>
+<div class="a step" style="left:394px;top:338px"><div class="num">3</div><div><b>출처 표시</b><span>본사 &gt; API &gt; 가정값 순으로 채움</span></div></div>
+
+<div class="a tbl" style="left:650px;top:120px;width:212px;height:372px">
+  <h4>표준 테이블 8개</h4><small>모두 같은 날짜 축, 하루 1행</small>
+  <div class="tr"><i class="mk api"></i>반응 일별 (검색·언급)</div>
+  <div class="tr"><i class="mk api"></i>블로그 주제·긍부정</div>
+  <div class="tr"><i class="mk api"></i>영상 조회수</div>
+  <div class="tr"><i class="mk api"></i>매장 주변 언급</div>
+  <div class="tr"><i class="mk lnk"></i>광고</div>
+  <div class="tr"><i class="mk inn"></i>판매</div>
+  <div class="tr"><i class="mk inn"></i>매장</div>
+  <div class="tr"><i class="mk inn"></i>행사</div>
+</div>
+
+<div class="a eng" style="left:900px;top:84px;width:442px;height:462px"></div>
+<div class="a lane" style="left:916px;top:96px"><span style="color:var(--navy);font-weight:700;font-size:13px">반응 쪽 · 매일</span><span>입력: 검색, 언급, 영상, 매장 순위</span></div>
+<div class="a box" style="left:916px;top:124px;width:266px"><b>신호 감지 규칙</b><span>검색 급등 · 언급 급증 · 부정 주제 증가<br>매장은 주변 언급과 판매 순위를 같이 봄</span></div>
+<div class="a box" style="left:1200px;top:124px;width:124px"><b>알림</b><span>기준을 넘은<br>그 날 바로</span></div>
+<div class="a lane" style="left:916px;top:238px"><span style="color:var(--navy);font-weight:700;font-size:13px">판매 쪽 · 주 1회 확정</span><span>입력: 판매, 행사, 요일 패턴</span></div>
+<div class="a box" style="left:916px;top:266px;width:124px"><b>기준선 추정</b><span>행사가 없었다면<br>팔렸을 양</span></div>
+<div class="a box" style="left:1058px;top:266px;width:124px"><b>행사 증분·ROI</b><span>실제 − 기준선<br>÷ 할인 비용</span></div>
+<div class="a box" style="left:1200px;top:266px;width:124px"><b>판정</b><span>증산·유지·감산<br>지속·조정·중단</span></div>
+<div class="a ver" style="left:916px;top:390px;width:408px;height:56px"><b>검증</b><span>과거 기간을 하루씩 다시 돌려 기준선·감지·증분의 오차 확인</span></div>
+<div class="a" style="left:916px;top:466px;width:408px;font-size:12px;color:var(--sub);line-height:1.6">모든 계산은 그 날까지의 데이터만 씀 (뒤의 데이터를 미리 보지 않음)<br>데이터가 실데이터로 바뀌어도 엔진은 그대로</div>
+
+<div class="a out" style="left:1380px;top:124px"><b>매일 알림</b><span>급등·이상 신호에<br>그 날 대응</span></div>
+<div class="a out" style="left:1380px;top:266px"><b>주간 판독 카드</b><span>증산·재출시, 판촉 조정,<br>매장 지원 결정</span></div>
+<div class="a out" style="left:1380px;top:390px;height:56px"><b>화면 3개 탭</b><span>판독 · 데이터 출처 · 추정 검증</span></div>
+
+<div class="a leg" style="left:40px;top:568px">
+  <span><i style="background:var(--teal-bg);border:1px solid var(--teal-line)"></i>공개 API · 실데이터</span>
+  <span><i style="background:var(--gray-bg);border:1px solid var(--gray-line)"></i>연동 필요 · 지금은 가정값</span>
+  <span><i style="background:var(--gray-bg);border:1.5px dashed var(--gray-line)"></i>본사 내부 · 가정값</span>
+</div>
+</body></html>

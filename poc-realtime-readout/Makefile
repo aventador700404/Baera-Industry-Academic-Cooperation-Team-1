@@ -1,12 +1,13 @@
 # 자주 쓰는 명령 모음. `make help`
 PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
-.PHONY: help setup mock collect check-apis build-data data test dev web shoot clean
+.PHONY: help setup mock collect check-apis build-data data live test dev web shoot clean
 
 help:
 	@echo "make setup       파이썬 가상환경 + 웹 패키지 설치 (처음 한 번)"
 	@echo "make data        목 데이터 생성 → 판독 JSON 빌드 (키 없이 바로 됨)"
 	@echo "make collect     .env 키로 공개 API 수집 → data/collected"
+	@echo "make live        목 데이터 + 공개 API 수집 → 판독 JSON (실데이터로 화면 갱신)"
 	@echo "make check-apis  키마다 1회 호출 테스트"
 	@echo "make test        파이썬 테스트"
 	@echo "make dev         data 빌드 후 웹 개발 서버 (http://127.0.0.1:5173)"
@@ -31,6 +32,8 @@ build-data:
 	$(PY) -m pipeline.build
 
 data: mock build-data
+
+live: mock collect build-data
 
 test:
 	$(PY) -m pytest
