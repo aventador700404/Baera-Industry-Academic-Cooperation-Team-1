@@ -10,14 +10,16 @@ export function ReactionQuad({ day }: { day: Day }) {
     <section className="panel quad" aria-labelledby="q1">
       <div className="panel-h"><h2 id="q1">신제품 반응</h2><span className="note">매일</span></div>
       <Verdict c={day.reaction_status} />
-      <h3 className="h3">무엇을 말하나 <span className="note">최근 3일 블로그 주제별 언급 · 초록 = 긍정</span></h3>
+      <h3 className="h3">무엇을 말하나 <span className="note">최근 3일 블로그 주제별 언급 · 초록 긍정 · 빨강 부정 · 회색 판단 안 됨 · % = 판단된 글 중 긍정</span></h3>
       {!tp ? <div className="empty">주제 데이터 없음</div> : (
         <div className="topics">
           {tp.rows.map((t) => (
             <div className="trow" key={t.topic}>
               <span className="tname">{t.topic}</span>
-              <div className="tbar" style={{ width: `${(t.mentions / max) * 100}%` }} title={`긍정 ${t.positive} · 부정 ${t.negative}`}>
+              <div className="tbar" style={{ width: `${(t.mentions / max) * 100}%` }}
+                title={`긍정 ${t.positive} · 부정 ${t.negative} · 판단 안 됨 ${t.mentions - t.positive - t.negative}`}>
                 <div className="tpos" style={{ width: `${t.mentions ? (t.positive / t.mentions) * 100 : 0}%` }} />
+                <div className="tneg" style={{ width: `${t.mentions ? (t.negative / t.mentions) * 100 : 0}%` }} />
               </div>
               <span className="tval">
                 {fmt(t.mentions)} · {t.pos != null ? pct(t.pos) : "-"}

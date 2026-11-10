@@ -130,8 +130,8 @@ tr.hl td.name { color: var(--pink) }
 .topics { display: grid; gap: 6px }
 .trow { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12px }
 .tname { font-weight: 700; color: var(--ink-2) }
-.tbar { height: 11px; border-radius: 3px; background: var(--crit); opacity: .85; min-width: 4px; overflow: hidden }
-.tpos { height: 100%; background: var(--good) }
+.tbar { height: 11px; border-radius: 3px; background: var(--line); min-width: 4px; overflow: hidden; display: flex }
+.tpos { height: 100%; background: var(--good) } .tneg { height: 100%; background: var(--crit) }
 .tval { white-space: nowrap; color: var(--ink-2); font-variant-numeric: tabular-nums; display: inline-flex; align-items: center }
 .yt { display: grid; gap: 2px }
 .yt .row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--line) }

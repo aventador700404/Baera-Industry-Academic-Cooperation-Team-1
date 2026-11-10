@@ -186,6 +186,8 @@ def _youtube(start: dt.date, end: dt.date, log: dict) -> list[pd.DataFrame]:
         old = pd.read_csv(path) if path.exists() else snap.iloc[0:0]
         if len(old) and "published_at" not in old.columns:   # 예전 형식 파일은 버리고 새로
             old = snap.iloc[0:0]
+        # 같은 날 다시 수집하면 그 날 스냅샷을 통째로 바꾼다 (먼저 받은 것 중 이번에 걸러진 영상이 남지 않게)
+        old = old[pd.to_datetime(old["date"]).dt.date != dt.date.today()] if len(old) else old
         youtube.prune(pd.concat([old, snap], ignore_index=True)).to_csv(path, index=False)
         top = snap.sort_values("views", ascending=False)["video_id"].head(COLLECT.comment_videos).tolist()
         dates, c_calls = [], 0
