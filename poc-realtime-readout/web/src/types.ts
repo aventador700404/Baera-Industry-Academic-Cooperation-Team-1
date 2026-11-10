@@ -24,6 +24,23 @@ export interface PromoRow {
   act?: number; base?: number; inc?: number; inc_lo?: number; inc_hi?: number; inc_pct?: number;
   cost_won?: number; roi?: number; roi_lo?: number; roi_hi?: number; n_fit?: number;
   verdict?: Tone; verdict_label?: string; firm?: boolean; tentative_reason?: "few_days" | "range" | null;
+  evidence?: string | null; source?: string | null;      // 행사 일정의 근거 (확인 / 규칙 추정 / 가정)
+  news?: PromoNews | null; reaction?: PromoReaction | null;
+}
+
+// 뉴스에서 찾은 같은 행사 (기사 수, 매체 수)
+export interface PromoNews { n_articles: number; n_outlets: number; evidence: string; start: string; end: string | null }
+// 행사명 검색지수가 행사 기간에 평소의 몇 배였나 (반응 성과, 판매 증분 아님)
+export interface PromoReaction { lift: number | null; brand_lift: number | null; peak: number; window: [string, string] }
+
+export interface PublicEvent {
+  event_id: string; type: string; name: string; start: string; end: string | null; evidence: string;
+  benefits: string; n_articles: number; n_outlets: number; first_pub: string; title: string;
+  sources: string[]; in_calendar: string | null;
+}
+export interface PublicClaim {
+  pub: string; kind: string; days: number | null; count: number | null; pct?: number | null; product: string;
+  text: string; link: string; date?: string; matches_anchor?: boolean;
 }
 
 export interface FlavorRow {
@@ -75,13 +92,17 @@ export interface Readout {
     milestones: { label: string; date: string; show: string }[];
     weekly_reads: { asof: string; read: string }[];
     collect: CollectLog | null;          // make collect 기록 (데이터 출처 탭)
+    public_events: PublicEvent[];        // 뉴스에서 찾은 행사 (수집한 경우)
+    public_claims: PublicClaim[];        // 기사에 나온 회사 발표 성과 수치
   };
   dates: string[];
   launch_dates: string[];
   series: { bra: (number | null)[] | null; trend: (number | null)[] | null; mentions: (number | null)[] | null;
             sales: (number | null)[]; ad_impressions: (number | null)[]; ad_spend: (number | null)[];
             ad_clicks: (number | null)[]; ad_campaign: (string | null)[] };
-  promos: { id: string; name: string; start: string; end: string; rate: number; desc: string }[];
+  promos: { id: string; name: string; start: string; end: string; rate: number; desc: string;
+            evidence: string | null; source: string | null; before_launch: boolean;
+            reaction: PromoReaction | null; news?: PromoNews | null }[];
   markers: { date: string; label: string }[];
   alerts: Alert[];
   days: Day[];

@@ -158,8 +158,8 @@ def promo_card(d: dt.date, c: dict) -> dict:
         first = c["promos"][0] if c["promos"] else None
         overlap = first and _d(first["start"]) <= LAUNCH.launch <= _d(first["end"])
         pend = [p for p in c["promos"] if p["status"] in ("running", "pending")]
-        head = (f"출시일({fmt.md(LAUNCH.launch)})이 {first['name']}({fmt.md(_d(first['start']))}~"
-                f"{fmt.md(_d(first['end']))})와 겹침" if overlap else "행사 판독 대기")
+        head = (f"출시일({fmt.md(LAUNCH.launch)})이 {first['name']} 기간({fmt.md(_d(first['start']))}~"
+                f"{fmt.md(_d(first['end']))})과 겹침" if overlap else "행사 판독 대기")
         items = ["출시 첫 주 판매에 맛 효과와 할인 효과가 섞임",
                  "행사 없는 날 판매로 기준선을 먼저 잡고 증분만 셈",
                  f"{pend[0]['name']}: {'진행 중' if pend[0]['status'] == 'running' else '종료, 기준선 데이터 쌓는 중'}"

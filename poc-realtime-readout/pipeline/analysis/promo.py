@@ -38,6 +38,9 @@ def evaluate(promos: pd.DataFrame, dates: list[dt.date], qty: np.ndarray, bl: Ba
             out.append(row)
             continue
         base, lo, hi = (float(x[sel].sum()) for x in (bl.base, bl.lo, bl.hi))
+        # 곡선 모양(k) 불확실성에 더해, 하루 변동에서 오는 기준선 수준 오차와 행사 기간 판매의 변동을 더한다 (약 95%)
+        err = 2 * bl.sigma * np.sqrt(1 / max(bl.n_fit, 1) + 1 / int(sel.sum())) * base
+        lo, hi = lo - err, hi + err
         cost_units = act * p.discount_rate      # 할인 비용을 개수로 환산 (단가는 약분됨)
         inc, inc_lo, inc_hi = act - base, act - hi, act - lo
         roi, roi_lo, roi_hi = (x / cost_units for x in (inc, inc_lo, inc_hi))

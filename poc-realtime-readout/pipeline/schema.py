@@ -28,6 +28,12 @@ TABLES: dict[str, dict[str, str]] = {
 # 없어도 화면이 도는 테이블 (해당 열·문구만 빠짐)
 OPTIONAL = {"youtube_videos_daily", "reaction_topics_daily", "store_reaction_daily", "ad_daily"}
 
+# 있으면 쓰고 없으면 빈 값으로 채우는 열. 행사표의 근거 표시는 본사 캘린더에는 없을 수 있다
+#   evidence: 확인 / 규칙 추정 / 가정 같은 확인 수준,  source: 근거 링크
+OPTIONAL_COLS: dict[str, dict[str, str]] = {
+    "promo_calendar": {"evidence": "str", "source": "str"},
+}
+
 
 class SchemaError(ValueError):
     pass
@@ -35,10 +41,12 @@ class SchemaError(ValueError):
 
 def coerce(name: str, df: pd.DataFrame) -> pd.DataFrame:
     """열 확인 + 타입 변환. 빠진 열이 있으면 SchemaError."""
-    spec = TABLES[name]
+    extra = OPTIONAL_COLS.get(name, {})
+    df = df.assign(**{c: "" for c in extra if c not in df.columns})
+    spec = {**TABLES[name], **extra}
     missing = [c for c in spec if c not in df.columns]
     if missing:
-        raise SchemaError(f"{name}: 빠진 열 {missing} (필요: {list(spec)})")
+        raise SchemaError(f"{name}: 빠진 열 {missing} (필요: {list(TABLES[name])})")
     out = df[list(spec)].copy()
     for col, typ in spec.items():
         if typ == "date":

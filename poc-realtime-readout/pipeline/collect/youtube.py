@@ -6,6 +6,8 @@
 - 쿼터: 일 10,000 units. search.list = 100, videos.list = 1 (50개씩), commentThreads.list = 1 (100개씩)
 - 과거 일별 조회수는 API로 못 받는다. 지나간 기간은 '지금 시점 조회수 + 게시일'로만 보여 준다
 - 댓글은 본문을 저장하지 않고 작성일만 날짜별로 센다 (반응이 언제 몰렸는지)
+- 시각은 UTC로 오므로 한국 날짜(KST)로 바꿔 센다 (밤 9시 이후 댓글이 전날로 잡히지 않게)
+- 검색 결과에는 관련 없는 영상(일반 '두바이 초콜릿' 영상 등)이 섞인다 → 제목·설명·태그로 거른다
 """
 from __future__ import annotations
 
@@ -20,6 +22,24 @@ from ._http import ApiError, env, get_json
 BASE = "https://www.googleapis.com/youtube/v3"
 RETENTION_DAYS = 30
 COLUMNS = ["date", "video_id", "channel_type", "title", "views", "published_at"]
+KST = dt.timezone(dt.timedelta(hours=9))
+
+
+def kst_date(ts: str) -> dt.date | None:
+    """'2026-03-02T21:00:00Z' → 2026-03-03 (한국 날짜)."""
+    if not ts:
+        return None
+    try:
+        return dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(KST).date()
+    except ValueError:
+        return dt.date.fromisoformat(ts[:10])
+
+
+def is_relevant(snippet: dict, any_of: Iterable[str]) -> bool:
+    text = " ".join([snippet.get("title", ""), snippet.get("description", ""), snippet.get("channelTitle", ""),
+                     " ".join(snippet.get("tags", []))])
+    text = text.lower()
+    return any(w.lower() in text for w in any_of)
 
 
 def _key() -> str:
@@ -51,32 +71,51 @@ def channel_type(snippet: dict, official_channel: str | None, hints: Iterable[st
 
 
 def parse_videos(resp: dict, today: dt.date, official_channel: str | None,
-                 hints: Iterable[str] = ()) -> pd.DataFrame:
+                 hints: Iterable[str] = (), any_of: Iterable[str] | None = None) -> pd.DataFrame:
+    """any_of를 주면 제목·설명·태그에 그 말이 하나도 없는 영상은 뺀다."""
     rows = []
     for it in resp.get("items", []):
         sn, stt = it.get("snippet", {}), it.get("statistics", {})
-        pub = (sn.get("publishedAt") or "")[:10]
+        if any_of is not None and not is_relevant(sn, any_of):
+            continue
+        pub = kst_date(sn.get("publishedAt") or "")
         rows.append((today, it["id"], channel_type(sn, official_channel, hints), sn.get("title", ""),
-                     int(stt.get("viewCount", 0)), dt.date.fromisoformat(pub) if pub else today))
+                     int(stt.get("viewCount", 0)), pub or today))
     return pd.DataFrame(rows, columns=COLUMNS)
 
 
-def snapshot(video_ids: list[str], today: dt.date | None = None, hints: Iterable[str] = ()) -> pd.DataFrame:
+def raw_rows(resp: dict, any_of: Iterable[str] | None = None) -> list[dict]:
+    """원문 보관용 최소 정보 (설명 앞부분까지). 정책상 30일 안에 지운다."""
+    out = []
+    for it in resp.get("items", []):
+        sn, stt = it.get("snippet", {}), it.get("statistics", {})
+        out.append({"video_id": it["id"], "title": sn.get("title", ""), "channel": sn.get("channelTitle", ""),
+                    "published_at": sn.get("publishedAt", ""), "views": int(stt.get("viewCount", 0)),
+                    "description": (sn.get("description") or "")[:300],
+                    "relevant": True if any_of is None else is_relevant(sn, any_of)})
+    return out
+
+
+def snapshot(video_ids: list[str], today: dt.date | None = None, hints: Iterable[str] = (),
+             any_of: Iterable[str] | None = None) -> tuple[pd.DataFrame, list[dict]]:
+    """(관련 영상의 조회수 스냅샷, 받은 영상 전체의 원문 행). 원문 행의 relevant로 걸러진 영상을 볼 수 있다."""
     today = today or dt.date.today()
-    frames = []
+    frames, raw = [], []
     for i in range(0, len(video_ids), 50):
         r = get_json(f"{BASE}/videos", "youtube videos", {
             "part": "snippet,statistics", "id": ",".join(video_ids[i:i + 50]), "key": _key()})
-        frames.append(parse_videos(r, today, env("YOUTUBE_OFFICIAL_CHANNEL_ID"), hints))
-    return pd.concat(frames, ignore_index=True) if frames else parse_videos({}, today, None)
+        frames.append(parse_videos(r, today, env("YOUTUBE_OFFICIAL_CHANNEL_ID"), hints, any_of))
+        raw += raw_rows(r, any_of)
+    df = pd.concat(frames, ignore_index=True) if frames else parse_videos({}, today, None)
+    return df, raw
 
 
 def parse_comment_dates(resp: dict) -> list[dt.date]:
     out = []
     for it in resp.get("items", []):
-        ts = it.get("snippet", {}).get("topLevelComment", {}).get("snippet", {}).get("publishedAt", "")
-        if ts[:10]:
-            out.append(dt.date.fromisoformat(ts[:10]))
+        d = kst_date(it.get("snippet", {}).get("topLevelComment", {}).get("snippet", {}).get("publishedAt", ""))
+        if d:
+            out.append(d)
     return out
 
 

@@ -1,3 +1,4 @@
 {"items":[
- {"id":"v1","snippet":{"channelId":"UC_official","title":"공식 출시 영상"},"statistics":{"viewCount":"300000","likeCount":"26"}},
- {"id":"v2","snippet":{"channelId":"UC_someone","title":"시식 쇼츠"},"statistics":{"viewCount":"4100000"}}]}
+ {"id":"v1","snippet":{"channelId":"UC_official","title":"공식 출시 영상","channelTitle":"배스킨라빈스","description":"두바이에서 온 엄마는 외계인","publishedAt":"2026-02-23T16:00:00Z"},"statistics":{"viewCount":"300000","likeCount":"26"}},
+ {"id":"v2","snippet":{"channelId":"UC_someone","title":"배라 두바이 시식 쇼츠","publishedAt":"2026-02-24T03:00:00Z"},"statistics":{"viewCount":"4100000"}},
+ {"id":"v3","snippet":{"channelId":"UC_travel","title":"현지인이 알려준 두바이 초콜릿 진실","description":"두바이 여행","publishedAt":"2026-02-24T05:00:00Z"},"statistics":{"viewCount":"6762580"}}]}

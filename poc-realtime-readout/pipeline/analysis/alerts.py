@@ -13,7 +13,7 @@ import pandas as pd
 
 from ..config import LAUNCH, RULES, read_day
 from . import fmt
-from .reaction import arr, pre_month_mask
+from .reaction import arr, pre_month_mask, topic_flags, z_two_prop
 
 TOPIC_ACTION = {
     "품절·재고": "매장 재고 확인 → 품절 매장 공지·대체 맛 안내 (매장 모듈의 점검 매장과 대조)",
@@ -53,6 +53,8 @@ class Tracker:
         self.trend = arr(series.get("naver_datalab.trend.search_index"), n)
         self.ment = arr(series.get("naver_blog.bra.mentions"), n)
         self.pos = arr(series.get("naver_blog.bra.positive_ratio"), n)
+        self.pos_n = arr(series.get("naver_blog.bra.positive"), n)     # 긍정·부정 건수 (있으면 이걸로 판단)
+        self.neg_n = arr(series.get("naver_blog.bra.negative"), n)
         pre = pre_month_mask(dates)
         self.bra_pre = float(np.nanmean(self.bra[pre])) if np.isfinite(self.bra[pre]).any() else np.nan
         self.ment_pre = float(np.nanmean(self.ment[pre])) if np.isfinite(self.ment[pre]).any() else np.nan
@@ -60,6 +62,7 @@ class Tracker:
         self.items: list[Alert] = []
         self.last: dict[str, dt.date] = {}
         self.promo_done: set[str] = set()
+        self.store_yday: set[tuple[str, str]] = set()   # 어제 표에서 걸린 (신호, 매장)
 
     # ------------------------------------------------------------ 공통
     def _emit(self, d: dt.date, key: str, cooldown: int | None, **kw) -> bool:
@@ -94,7 +97,7 @@ class Tracker:
             m = self.ment[i]
             self._emit(d, "search_spike", None, module="reaction", tone="warn",
                        title=f"검색 급등: 출시 전 한 달 평균의 {fmt.times(b / self.bra_pre)}",
-                       detail=f"{self.labels['bra']} {b:.0f} (평소 {self.bra_pre:.1f}) · 블로그·카페 언급 "
+                       detail=f"{self.labels['bra']} {fmt.idx(b)} (평소 {fmt.idx(self.bra_pre)}) · 블로그·카페 언급 "
                               f"{fmt.n(m)}건 (평소 일평균 {fmt.n(self.ment_pre)}건)",
                        action="출시일 콘텐츠·광고 집행 앞당김 검토, 초도 물량 점검")
         if d >= LAUNCH.launch + dt.timedelta(days=2):
@@ -104,7 +107,7 @@ class Tracker:
             if j <= i - 2 and b < 0.85 * self.bra[j]:
                 self._emit(d, "search_peak", None, module="reaction", tone="info",
                            title=f"검색 정점 통과 ({fmt.md(self.dates[j])})",
-                           detail=f"정점 지수 {self.bra[j]:.0f} → 오늘 {b:.0f}",
+                           detail=f"정점 지수 {fmt.idx(self.bra[j])} → 오늘 {fmt.idx(b)}",
                            action="확산기 → 유지기. 이제는 판매가 따라오는지(전환)와 재구매 신호를 봄")
 
     def _trend(self, d: dt.date, i: int) -> None:
@@ -113,7 +116,7 @@ class Tracker:
                 and self.trend[i] <= RULES.trend_fade * self.trend[i - 21]:
             self._emit(d, "trend_fade", None, module="reaction", tone="warn",
                        title=f"{self.labels['trend']} 3주 새 {fmt.pct(1 - self.trend[i] / self.trend[i - 21])} 하락",
-                       detail=f"지수 {self.trend[i - 21]:.0f} → {self.trend[i]:.0f}. 유행 키워드에 기대는 메시지는 수명이 짧음",
+                       detail=f"지수 {fmt.idx(self.trend[i - 21])} → {fmt.idx(self.trend[i])}. 유행 키워드에 기대는 메시지는 수명이 짧음",
                        action="유행 편승 문구 비중을 줄이고 맛 자체로 소구하는 메시지 준비")
 
     def _videos(self, d: dt.date) -> None:
@@ -137,46 +140,53 @@ class Tracker:
 
     def _topics(self, d: dt.date) -> None:
         t = self.topics
-        if t is None or not len(t):
+        if t is None or not len(t) or d < LAUNCH.teaser:   # 주제 판독은 신제품 이야기가 나오기 시작한 뒤부터
             return
-        t3 = t[(t["date"] > d - dt.timedelta(days=3)) & (t["date"] <= d)].groupby("topic")[
-            ["mentions", "positive"]].sum()
+        cols = ["mentions", "positive", "negative"]
+        t3 = t[(t["date"] > d - dt.timedelta(days=3)) & (t["date"] <= d)].groupby("topic")[cols].sum()
         t14 = t[(t["date"] > d - dt.timedelta(days=17)) & (t["date"] <= d - dt.timedelta(days=3))].groupby("topic")[
-            ["mentions", "positive"]].sum()
+            cols].sum()
         if t3.empty or t14.empty:
             return
         tot3, tot14 = t3["mentions"].sum(), t14["mentions"].sum()
         promo_now = self._promo_running(d)
         for topic, r in t3.iterrows():
-            if r.mentions < RULES.topic_min_mentions or topic not in t14.index or not t14.loc[topic, "mentions"]:
+            if topic not in t14.index or not t14.loc[topic, "mentions"]:
                 continue
-            share, share_prev = r.mentions / tot3, t14.loc[topic, "mentions"] / tot14
-            pos, pos_prev = r.positive / r.mentions, t14.loc[topic, "positive"] / t14.loc[topic, "mentions"]
+            q = t14.loc[topic]
+            f = topic_flags(r.mentions, r.positive, r.negative, tot3, q.mentions, q.positive, q.negative, tot14)
             expected = promo_now and topic in ("가격·할인", "양·사이즈")   # 행사 중 가격 언급 증가는 당연
-            if share >= RULES.topic_surge_x * share_prev and not expected:
-                self._emit(d, f"topic_surge:{topic}", 7, module="reaction", tone="crit" if pos < 0.5 else "info",
+            if f["surge"] and not expected:
+                pos_txt = f", 긍정률 {fmt.pct(f['pos'])}" if f["pos"] is not None else ""
+                self._emit(d, f"topic_surge:{topic}", 7, module="reaction",
+                           tone="crit" if f["pos"] is not None and f["pos"] < 0.5 else "info",
                            title=f"'{topic}' 언급 급증",
-                           detail=f"최근 3일 {fmt.n(r.mentions)}건, 전체 언급 중 비중 {fmt.pct(share_prev)} → "
-                                  f"{fmt.pct(share)}, 긍정률 {fmt.pct(pos)}",
+                           detail=f"최근 3일 {fmt.n(r.mentions)}건, 전체 언급 중 비중 {fmt.pct(f['share_prev'])} → "
+                                  f"{fmt.pct(f['share'])}{pos_txt}",
                            action=TOPIC_ACTION.get(topic, "후기 원문 확인"))
-            if pos <= pos_prev - 0.15:
+            if f["neg_up"]:
                 self._emit(d, f"topic_neg:{topic}", 7, module="reaction", tone="warn",
                            title=f"'{topic}' 주제 부정 증가",
-                           detail=f"긍정률 {fmt.pct(pos_prev)} → {fmt.pct(pos)} (최근 3일 {fmt.n(r.mentions)}건)",
+                           detail=f"긍정률 {fmt.pct(f['pos_prev'])} → {fmt.pct(f['pos'])} "
+                                  f"(최근 3일 긍정·부정 판단 {fmt.n(r.positive + r.negative)}건)",
                            action=TOPIC_ACTION.get(topic, "후기 원문 확인"))
 
     def _sentiment(self, d: dt.date, i: int) -> None:
-        if i < 10 or d < LAUNCH.launch:
+        """최근 3일 vs 그 전 7일 긍정률. 구간의 긍정·부정 건수를 합쳐 비교하고, 건수가 적거나
+        차이가 우연 범위(z < signif_z)면 울리지 않는다. 건수가 없는 데이터(예전 수집분)는 판단하지 않는다."""
+        if i < 10 or d < LAUNCH.launch or not np.isfinite(self.pos_n).any():
             return
-        w3, w7 = self.pos[i - 2:i + 1], self.pos[i - 9:i - 2]
-        if not (np.isfinite(w3).any() and np.isfinite(w7).any()):
+        P3, N3 = np.nansum(self.pos_n[i - 2:i + 1]), np.nansum(self.neg_n[i - 2:i + 1])
+        P7, N7 = np.nansum(self.pos_n[i - 9:i - 2]), np.nansum(self.neg_n[i - 9:i - 2])
+        n3, n7 = P3 + N3, P7 + N7
+        if n3 < RULES.sentiment_min_n or n7 < RULES.sentiment_min_n:
             return
-        p3, p7 = np.nanmean(w3), np.nanmean(w7)
-        if np.isfinite(p3) and np.isfinite(p7) and (p7 - p3) * 100 >= RULES.sentiment_drop_pp \
+        p3, p7 = P3 / n3, P7 / n7
+        if (p7 - p3) * 100 >= RULES.sentiment_drop_pp and z_two_prop(P7, n7, P3, n3) >= RULES.signif_z \
                 and not self._recent(d, ("topic_neg",), 3):
             self._emit(d, "sentiment_drop", 7, module="reaction", tone="warn",
                        title=f"전체 긍정률 {(p7 - p3) * 100:.0f}%p 하락",
-                       detail=f"최근 3일 {fmt.pct(p3)} (그 전 7일 {fmt.pct(p7)})",
+                       detail=f"최근 3일 {fmt.pct(p3)} ({fmt.n(n3)}건) vs 그 전 7일 {fmt.pct(p7)} ({fmt.n(n7)}건)",
                        action="주제별 판독에서 어떤 주제가 끌어내렸는지 확인")
 
     def _first_week(self, d: dt.date, snap: dict) -> None:
@@ -206,7 +216,12 @@ class Tracker:
         st = snap.get("stores")
         if not st:
             return
+        # 매장이 1,700개라 하루만 튀는 매장은 우연으로도 나온다. 이틀 연속 걸린 매장만 알린다
+        today = {(r["flag"], r["store_id"]) for r in st["alerts"]}
+        yday, self.store_yday = self.store_yday, today
         for r in st["alerts"]:
+            if (r["flag"], r["store_id"]) not in yday:
+                continue
             if r["flag"] == "check":
                 self._emit(d, f"store_check:{r['store_id']}", 14, module="store", tone="crit", ref=r["store_id"],
                            title=f"매장 점검: {r['name']}",

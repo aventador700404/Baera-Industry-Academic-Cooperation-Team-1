@@ -27,14 +27,21 @@ from ..config import GENERATED, HISTORY_START, LAUNCH, D
 SEED = 7
 DOW = np.array([0.93, 0.92, 0.93, 0.95, 1.08, 1.22, 1.18])  # 월..일 (기존 맛과 이달의 맛 공통)
 
-# lift는 목 데이터의 정답이다. promo_calendar.csv에는 들어가지 않는다.
+# 행사 일정·혜택은 공개 보도 기준 (evidence·source 열). 판매에 미친 효과(lift)는 목 데이터의 정답이라
+# promo_calendar.csv에는 들어가지 않는다. 할인 환산율은 혜택을 판매가 대비 비율로 바꾼 값 (31데이만 가격으로 계산됨)
 PROMOS = [
-    dict(promo_id="baraday", name="배라데이", start="2026-03-01", end="2026-03-03",
-         discount_rate=0.15, desc="출시 직후 최대 할인 (제휴 결제 할인)", lift=0.18),
-    dict(promo_id="barawk", name="배라위크", start="2026-03-16", end="2026-03-22",
-         discount_rate=0.10, desc="레디팩 2+1 · 음료 1+1", lift=0.09),
-    dict(promo_id="d31", name="31데이", start="2026-03-31", end="2026-03-31",
-         discount_rate=0.20, desc="패밀리 → 하프갤론 사이즈업", lift=0.45),
+    dict(promo_id="barawk_feb", name="배라위크", start="2026-02-16", end="2026-02-22", discount_rate=0.10,
+         desc="레디팩 2+1 · 아메리카노 1+1 (출시 전 주, 기준 기간에서 제외)",
+         evidence="규칙 추정 (매월 셋째 월요일부터 7일)", source="https://www.hankyung.com/amp/202606168540P", lift=0.06),
+    dict(promo_id="launch500", name="출시 기념 500원 더블", start="2026-02-24", end="2026-03-01", discount_rate=0.15,
+         desc="싱글레귤러 + 500원 → 더블주니어", evidence="혜택 확인 · 기간과 환산율은 가정",
+         source="https://www.sateconomy.co.kr/news/view/1065578658659857", lift=0.18),
+    dict(promo_id="barawk", name="슈퍼 배라위크", start="2026-03-16", end="2026-03-22", discount_rate=0.10,
+         desc="레디팩 2+1 (네이버페이 2+2) · 아메리카노 1+1", evidence="확인 (3/16 보도)",
+         source="https://www.catchnews.kr/news/articleView.html?idxno=121661", lift=0.09),
+    dict(promo_id="d31", name="31데이", start="2026-03-31", end="2026-03-31", discount_rate=0.21,
+         desc="패밀리 → 하프갤론 (26,000원에 31,500원 상품, 혜택 5,500원) · 3/30까지 사전예약",
+         evidence="확인 (3/30 보도)", source="https://www.hankyung.com/article/202603305107P", lift=0.45),
 ]
 
 # 기존 맛 브랜드 전체 일평균 (가정)
@@ -60,20 +67,20 @@ TOPICS = {
 
 # 광고 캠페인 (가정): (이름, 시작, 끝, 첫날 일 노출, 마지막 날 일 노출, 노출 1천 회당 비용(원), 클릭률)
 ADS = [
-    ("티저", D("2026-02-27"), D("2026-02-28"), 1_200_000, 1_400_000, 6_500, 0.011),
-    ("출시", D("2026-03-01"), D("2026-03-10"), 2_600_000, 1_100_000, 6_000, 0.013),
+    ("티저", D("2026-02-23"), D("2026-02-23"), 1_200_000, 1_200_000, 6_500, 0.011),
+    ("출시", D("2026-02-24"), D("2026-03-05"), 2_600_000, 1_100_000, 6_000, 0.013),
     ("배라위크", D("2026-03-14"), D("2026-03-22"), 1_500_000, 1_200_000, 5_500, 0.009),
     ("31데이", D("2026-03-29"), D("2026-03-31"), 1_000_000, 1_400_000, 5_500, 0.012),
 ]
 AD_CHANNELS = {"유튜브": 0.45, "인스타그램": 0.35, "네이버": 0.20}
 
 VIDEOS = [  # (id, 채널, 제목, 게시일, 최종 조회수, 확산 속도)
-    ("yt_off_teaser", "official", "공식 · 두바이에서 온 엄마는 외계인 티저", D("2026-02-27"), 120_000, 3),
-    ("yt_off_launch", "official", "공식 · 출시 영상", D("2026-03-01"), 300_000, 4),
-    ("yt_con_a", "consumer", "소비자 쇼츠 · 출시일 시식", D("2026-03-01"), 4_100_000, 3),
-    ("yt_con_b", "consumer", "소비자 쇼츠 · 두바이 맛 솔직 후기", D("2026-03-02"), 2_600_000, 4),
-    ("yt_con_c", "consumer", "소비자 쇼츠 · 원조와 비교 (매장 촬영)", D("2026-03-05"), 1_200_000, 5),
-    ("yt_con_d", "consumer", "먹방 · 쿼터 4가지 조합", D("2026-03-09"), 800_000, 6),
+    ("yt_off_teaser", "official", "공식 · 두바이에서 온 엄마는 외계인 티저", D("2026-02-23"), 120_000, 3),
+    ("yt_off_launch", "official", "공식 · 출시 영상", D("2026-02-24"), 300_000, 4),
+    ("yt_con_a", "consumer", "소비자 쇼츠 · 출시일 시식", D("2026-02-24"), 4_100_000, 3),
+    ("yt_con_b", "consumer", "소비자 쇼츠 · 두바이 맛 솔직 후기", D("2026-02-25"), 2_600_000, 4),
+    ("yt_con_c", "consumer", "소비자 쇼츠 · 원조와 비교 (매장 촬영)", D("2026-03-02"), 1_200_000, 5),
+    ("yt_con_d", "consumer", "먹방 · 쿼터 4가지 조합", D("2026-03-06"), 800_000, 6),
 ]
 
 
@@ -109,7 +116,7 @@ def brand_series(rng: np.random.Generator):
     def actual(k: float) -> np.ndarray:
         return (0.55 + 0.75 * np.exp(-t / k)) * dow * (1 + lift)
 
-    ks = np.arange(1.0, 60.0, 0.01)
+    ks = np.arange(1.0, 400.0, 0.05)
     ratios = np.array([actual(k)[i1:i2].sum() / actual(k)[:i1].sum() for k in ks])
     k = float(ks[np.argmin(np.abs(ratios - target))])
     a = actual(k)
@@ -154,7 +161,7 @@ def search_index(rng: np.random.Generator, days: list[dt.date]):
         else:
             b = 26 + 74 * math.exp(-(t - 2) / 6.5)
         p = promo_of(d)
-        b *= {"barawk": 1.12, "d31": 1.25}.get(p["promo_id"] if p else "", 1.0)
+        b *= {"barawk": 1.12, "d31": 1.25}.get(p["promo_id"].split("_")[0] if p else "", 1.0)
         bra.append(b * (1 + rng.normal(0, 0.04)) if d >= L.teaser else b)
         tt = (d - HISTORY_START).days
         trend.append((82 * math.exp(-tt / 34) + 6) * (1 + rng.normal(0, 0.05)))
@@ -174,7 +181,7 @@ def topic_share(topic: str, d: dt.date) -> tuple[float, float]:
     if topic == "품절·재고" and D("2026-03-09") <= d <= D("2026-03-14"):
         share = 0.14                               # 수요 몰림 + 일부 매장 품절
     if topic == "가격·할인" and p:
-        share, pos = 0.18, (0.55 if p["promo_id"] == "barawk" else 0.70)
+        share, pos = 0.18, (0.55 if p["promo_id"].startswith("barawk") else 0.70)
     if topic == "양·사이즈" and p and p["promo_id"] == "d31":
         share = 0.15
     return share, pos
@@ -274,7 +281,9 @@ def main() -> dict:
             pos_sum += p
             tot_sum += cnt
         if d >= L.teaser and tot_sum:
-            reac_rows.append((d, "naver_blog", "bra", "positive_ratio", round(pos_sum / tot_sum, 3)))
+            reac_rows += [(d, "naver_blog", "bra", "positive_ratio", round(pos_sum / tot_sum, 3)),
+                          (d, "naver_blog", "bra", "positive", pos_sum),
+                          (d, "naver_blog", "bra", "negative", tot_sum - pos_sum)]
     reaction = pd.DataFrame(reac_rows, columns=["date", "source", "keyword", "metric", "value"])
     topics = pd.DataFrame(topic_rows, columns=["date", "topic", "mentions", "positive", "negative"])
 
@@ -308,6 +317,7 @@ def main() -> dict:
     ads = pd.DataFrame(ad_rows, columns=["date", "campaign", "channel", "impressions", "clicks", "spend"])
 
     promo_cal = pd.DataFrame([{k_: v for k_, v in p.items() if k_ != "lift"} for p in PROMOS])
+    in_launch = [p for p in PROMOS if D(p["end"]) >= L.launch]   # 출시 전 행사는 이달의 맛 증분이 없다
 
     out = {
         "sales_daily": sales, "store_master": sm, "promo_calendar": promo_cal,
@@ -323,7 +333,7 @@ def main() -> dict:
             "lift": p["lift"],
             "incremental": int(round(sum(brand[j] - truth_base[j] for j, d in enumerate(days_m)
                                          if D(p["start"]) <= d <= D(p["end"])))),
-        } for p in PROMOS},
+        } for p in in_launch},
         "stores": {k_: {"store_id": sm["store_id"][v[0]], "start": v[1].isoformat(), "end": v[2].isoformat()}
                    for k_, v in events.items()},
         "topic_events": {"맛_부정": ["2026-03-07", "2026-03-12"], "품절·재고": ["2026-03-09", "2026-03-14"]},

@@ -18,6 +18,30 @@ def pivot(reaction: pd.DataFrame, dates: list[dt.date]) -> dict[str, list[float 
     return out
 
 
+def z_two_prop(x1: float, n1: float, x2: float, n2: float) -> float:
+    """두 비율 x1/n1, x2/n2 차이의 z 값. 표본이 작으면 같은 차이도 z가 작다 (우연일 수 있음)."""
+    if n1 <= 0 or n2 <= 0:
+        return 0.0
+    p = (x1 + x2) / (n1 + n2)
+    se = (p * (1 - p) * (1 / n1 + 1 / n2)) ** 0.5
+    return (x1 / n1 - x2 / n2) / se if se > 0 else 0.0
+
+
+def topic_flags(m3: float, pos3: float, neg3: float, tot3: float,
+                m14: float, pos14: float, neg14: float, tot14: float) -> dict:
+    """주제 하나의 최근 3일 vs 그 전 14일. 알림과 표가 같은 기준을 쓴다.
+    긍정률 = 긍정 ÷ (긍정 + 부정). 감성이 안 잡힌 글은 빼고 본다 (블로그 전체 긍정률과 같은 정의)."""
+    share, share_prev = (m3 / tot3 if tot3 else 0.0), (m14 / tot14 if tot14 else None)
+    n3, n14 = pos3 + neg3, pos14 + neg14
+    pos, pos_prev = (pos3 / n3 if n3 else None), (pos14 / n14 if n14 else None)
+    enough = m3 >= RULES.topic_min_mentions
+    surge = bool(enough and share_prev and share >= RULES.topic_surge_x * share_prev
+                 and z_two_prop(m3, tot3, m14, tot14) >= RULES.signif_z)
+    neg_up = bool(enough and pos is not None and pos_prev is not None and pos <= pos_prev - 0.15
+                  and n3 >= RULES.topic_min_mentions and z_two_prop(pos14, n14, pos3, n3) >= RULES.signif_z)
+    return {"share": share, "share_prev": share_prev, "pos": pos, "pos_prev": pos_prev, "surge": surge, "neg_up": neg_up}
+
+
 def arr(series: list[float | None] | None, n: int) -> np.ndarray:
     if series is None:
         return np.full(n, np.nan)
@@ -50,6 +74,14 @@ def summary(series: dict, dates: list[dt.date], asof: dt.date) -> dict:
         out["mentions_7d"] = float(np.nansum(ment[idx]))
         p = ment[pre & np.isfinite(ment)]
         out["mentions_pre_7d"] = float(p.mean() * 7) if len(p) else None
+    pc, nc = arr(series.get("naver_blog.bra.positive"), n), arr(series.get("naver_blog.bra.negative"), n)
+    if np.isfinite(pc[upto]).any():
+        # 최근 7일 긍정·부정 건수를 합쳐서 (하루 비율의 평균은 글이 적은 날에 끌려간다)
+        last7 = np.array([asof - dt.timedelta(days=6) <= d <= asof for d in dates])
+        P, N = np.nansum(pc[last7]), np.nansum(pc[last7]) + np.nansum(nc[last7])
+        if N >= RULES.sentiment_min_n:
+            out["positive_7d"], out["positive_7d_n"] = float(P / N), int(N)
+        return out
     p = pos[upto & after & np.isfinite(pos)]
     if not len(p):
         p = pos[upto & np.isfinite(pos)]
@@ -71,18 +103,10 @@ def topics_table(topics: pd.DataFrame | None, asof: dt.date) -> dict | None:
     tot3, tot14 = g3["mentions"].sum(), g14["mentions"].sum()
     rows = []
     for topic, r in g3.sort_values("mentions", ascending=False).iterrows():
-        share = r.mentions / tot3 if tot3 else 0
-        share_prev = g14.loc[topic, "mentions"] / tot14 if tot14 else None
-        pos = r.positive / r.mentions if r.mentions else None
-        pos_prev = g14.loc[topic, "positive"] / g14.loc[topic, "mentions"] if g14.loc[topic, "mentions"] else None
+        q = g14.loc[topic]
+        f = topic_flags(r.mentions, r.positive, r.negative, tot3, q.mentions, q.positive, q.negative, tot14)
         rows.append({"topic": topic, "mentions": int(r.mentions), "positive": int(r.positive),
-                     "negative": int(r.negative), "share": share, "share_prev": share_prev,
-                     "pos": pos, "pos_prev": pos_prev,
-                     # 알림과 같은 기준 (alerts.py)
-                     "surge": bool(share_prev and share >= RULES.topic_surge_x * share_prev
-                                   and r.mentions >= RULES.topic_min_mentions),
-                     "neg_up": bool(pos is not None and pos_prev is not None and pos <= pos_prev - 0.15
-                                    and r.mentions >= RULES.topic_min_mentions)})
+                     "negative": int(r.negative), **f})   # 알림과 같은 기준 (alerts.py)
     return {"window": {"start": (asof - dt.timedelta(days=2)).isoformat(), "end": asof.isoformat()}, "rows": rows}
 
 
@@ -121,3 +145,32 @@ def youtube_top(yt: pd.DataFrame | None, asof: dt.date, top: int = 5) -> dict | 
     return {"asof": basis.isoformat(),
             "videos": [{"title": r.title, "channel_type": r.channel_type, "views": int(r.views)}
                        for r in snap.head(top).itertuples()]}
+
+
+PROMO_GROUPS = ("barawk", "d31")   # config.COLLECT.promo_keyword_groups 의 행사 키와 맞춤
+
+
+def promo_reaction(series: dict, dates: list[dt.date], promo: dict) -> dict | None:
+    """행사명 검색지수가 행사 기간에 평소(행사 시작 전 4주 중앙값)의 몇 배였나. 브랜드 검색도 같이.
+
+    반응 성과일 뿐 판매 증분이 아니다 (화제가 된 행사가 매출에 컸다는 뜻은 아님).
+    31데이는 전날까지 사전예약이 있어 전날부터 본다."""
+    key = next((g for g in PROMO_GROUPS if promo["id"].startswith(g)), None)
+    if key is None:
+        return None
+    n = len(dates)
+    s = arr(series.get(f"naver_datalab.promo_{key}.search_index"), n)
+    b = arr(series.get("naver_datalab.promo_brand.search_index"), n)
+    start, end = dt.date.fromisoformat(promo["start"]), dt.date.fromisoformat(promo["end"])
+    w_from = start - dt.timedelta(days=1) if key == "d31" else start
+    win = np.array([w_from <= d <= end for d in dates])
+    base = np.array([start - dt.timedelta(days=28) <= d < w_from for d in dates])
+    if not (np.isfinite(s[win]).any() and np.isfinite(s[base]).any()):
+        return None
+
+    def lift(x: np.ndarray) -> float | None:
+        bv = float(np.nanmedian(x[base])) if np.isfinite(x[base]).any() else 0.0
+        return float(np.nanmean(x[win]) / bv) if bv > 0 else None
+
+    return {"lift": lift(s), "brand_lift": lift(b), "peak": float(np.nanmax(s[win])),
+            "window": [w_from.isoformat(), end.isoformat()]}

@@ -48,14 +48,15 @@ def load_all() -> Tables:
                 raise FileNotFoundError(
                     f"{name}.csv 가 data/raw, data/collected, data/generated 어디에도 없음. "
                     "먼저 `make mock` 실행")
-    # 반응 데이터는 API 수집분과 목을 섞을 수 있다: 수집된 source만 덮어쓴다
+    # 반응 데이터는 API 수집분과 목을 섞을 수 있다. 수집된 (소스, 키워드)는 지표 전체를 API 것으로 쓴다
+    # (예: API 블로그에 긍정·부정 건수가 없다고 목의 건수를 끼워 넣지 않는다)
     api_path = COLLECTED / "reaction_daily.csv"
     mock_path = GENERATED / "reaction_daily.csv"
     if prov.get("reaction_daily") == "api" and mock_path.exists():
         api = coerce("reaction_daily", read_csv(api_path))
         mock = coerce("reaction_daily", read_csv(mock_path))
-        got = set(zip(api["source"], api["keyword"], api["metric"]))
-        keep = mock[[k not in got for k in zip(mock["source"], mock["keyword"], mock["metric"])]]
+        got = set(zip(api["source"], api["keyword"]))
+        keep = mock[[k not in got for k in zip(mock["source"], mock["keyword"])]]
         if len(keep):
             frames["reaction_daily"] = pd.concat([api, keep], ignore_index=True)
             prov["reaction_daily"] = "mixed"

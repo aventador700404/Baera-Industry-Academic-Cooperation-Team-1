@@ -16,10 +16,44 @@ import sys
 import pandas as pd
 
 from ..config import COLLECT, COLLECTED, LAUNCH
-from . import instagram, naver, youtube
+from . import events, instagram, naver, youtube
 from ._http import env, load_env, redact
 
 LOG = COLLECTED / "_collect_log.json"
+
+
+# ---------------------------------------------------------------- 원문 보관 (raw 층)
+def raw_dir():
+    return COLLECTED / "raw"
+
+
+def save_raw(name: str, rows: list[dict], today: dt.date) -> int:
+    """수집한 원문을 그대로 남긴다: data/collected/raw/{name}_{수집일}.jsonl (깃에 안 올라감).
+    집계값이 왜 그렇게 나왔는지 나중에 글 단위로 다시 볼 수 있게. 보관 기간은 COLLECT.raw_retention_days."""
+    d = raw_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / f"{name}_{today.isoformat()}.jsonl"
+    path.write_text("".join(json.dumps(r, ensure_ascii=False, default=str) + "\n" for r in rows), encoding="utf-8")
+    return len(rows)
+
+
+def prune_raw(today: dt.date) -> None:
+    for f in raw_dir().glob("*.jsonl") if raw_dir().exists() else []:
+        try:
+            day = dt.date.fromisoformat(f.stem.rsplit("_", 1)[-1])
+        except ValueError:
+            continue
+        if (today - day).days > COLLECT.raw_retention_days:
+            f.unlink()
+
+
+def _post_raw(it: dict, relevant: bool | None = None) -> dict:
+    row = {"date": naver.post_date(it), "title": naver.clean(it.get("title", "")),
+           "description": naver.clean(it.get("description", "")),
+           "link": it.get("originallink") or it.get("link", ""), "author": it.get("bloggername", "")}
+    if relevant is not None:
+        row["relevant"] = relevant
+    return row
 
 
 def _err(e: Exception) -> str:
@@ -42,6 +76,8 @@ def check() -> int:
         "네이버 블로그 검색": (("NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"),
                          lambda: naver.fetch_items(q, max_items=100, sort="sim")),
         "네이버 카페 검색": (("NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"), lambda: [naver.cafe_total(q)]),
+        "네이버 뉴스 검색": (("NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"),
+                         lambda: naver.fetch_items("배스킨라빈스", max_items=100, sort="sim", kind="news")),
         "유튜브 Data API": (("YOUTUBE_API_KEY",), lambda: youtube.search_ids(
             "배스킨라빈스", today - dt.timedelta(days=7), max_results=1)),
         "인스타 Business Discovery": (("IG_USER_ID", "IG_ACCESS_TOKEN", "IG_ACCOUNTS"),
@@ -66,6 +102,7 @@ def check() -> int:
 
 def _naver(start: dt.date, end: dt.date, log: dict) -> list[pd.DataFrame]:
     frames = []
+    today = dt.date.today()
     try:
         dl = naver.datalab(start, end, LAUNCH.keyword_groups)
         frames.append(dl)
@@ -77,8 +114,20 @@ def _naver(start: dt.date, end: dt.date, log: dict) -> list[pd.DataFrame]:
         log["naver_datalab"] = {"ok": False, "error": _err(e)}
         print(f"  !! 네이버 데이터랩: {_err(e)}")
     try:
+        # 행사명 검색지수: 브랜드 전체와 한 요청에 넣어 행사 기간에 얼마나 올랐는지 본다 (키워드 이름 앞에 promo_)
+        pdl = naver.datalab(start, end, COLLECT.promo_keyword_groups)
+        pdl["keyword"] = "promo_" + pdl["keyword"]
+        frames.append(pdl)
+        log["naver_datalab_promo"] = {"ok": True, "rows": len(pdl), "calls": 1, "groups": COLLECT.promo_keyword_groups}
+        print(f"  네이버 데이터랩 (행사명): {len(pdl)}행")
+    except Exception as e:  # noqa: BLE001
+        log["naver_datalab_promo"] = {"ok": False, "error": _err(e)}
+        print(f"  !! 네이버 데이터랩 (행사명): {_err(e)}")
+    try:
         items, st = naver.collect_posts(COLLECT.blog_queries, start, end)
-        rel = [it for it in items if naver.relevant(it, COLLECT.must_have, COLLECT.any_of)]
+        rel_flags = [naver.relevant(it, COLLECT.must_have, COLLECT.any_of) for it in items]
+        rel = [it for it, ok in zip(items, rel_flags) if ok]
+        save_raw("blog", [_post_raw(it, ok) for it, ok in zip(items, rel_flags)], today)
         frames.append(naver.parse_blog(rel, COLLECT.blog_keyword, start, end))
         topics = naver.parse_topics(rel, start, end)
         if len(topics):
@@ -97,6 +146,19 @@ def _naver(start: dt.date, end: dt.date, log: dict) -> list[pd.DataFrame]:
     except Exception as e:  # noqa: BLE001
         log["naver_cafe"] = {"ok": False, "error": _err(e)}
         print(f"  !! 네이버 카페: {_err(e)}")
+    try:
+        # 뉴스: 행사 일정·혜택과 발표된 성과 수치. 성과 기사는 기간이 끝난 뒤에도 나오므로 지금까지의 기사를 다 본다
+        nstart = start - dt.timedelta(days=COLLECT.news_lookback_days)
+        items, st = naver.collect_posts(COLLECT.news_queries, nstart, end, kind="news")
+        save_raw("news", [_post_raw(it) for it in items], today)
+        ev, cl = events.extract(items, start, end)
+        ev.to_csv(COLLECTED / "news_events.csv", index=False)
+        cl.to_csv(COLLECTED / "news_claims.csv", index=False)
+        log["naver_news"] = {"ok": True, **st, "events": len(ev), "claims": len(cl)}
+        print(f"  네이버 뉴스: 기사 {st['unique']}건 → 행사 {len(ev)}개, 발표 수치 {len(cl)}개")
+    except Exception as e:  # noqa: BLE001
+        log["naver_news"] = {"ok": False, "error": _err(e)}
+        print(f"  !! 네이버 뉴스: {_err(e)}")
     return frames
 
 
@@ -106,7 +168,9 @@ def _youtube(start: dt.date, end: dt.date, log: dict) -> list[pd.DataFrame]:
         for q in COLLECT.youtube_queries:
             ids += [i for i in youtube.search_ids(q, COLLECT.youtube_after, end, COLLECT.youtube_max_videos)
                     if i not in ids]
-        snap = youtube.snapshot(ids, hints=COLLECT.official_channel_hint)
+        snap, raw = youtube.snapshot(ids, hints=COLLECT.official_channel_hint, any_of=COLLECT.youtube_any_of)
+        save_raw("youtube", raw, dt.date.today())
+        dropped = [r["title"] for r in raw if not r["relevant"]]
         path = COLLECTED / "youtube_videos_daily.csv"
         old = pd.read_csv(path) if path.exists() else snap.iloc[0:0]
         if len(old) and "published_at" not in old.columns:   # 예전 형식 파일은 버리고 새로
@@ -121,10 +185,11 @@ def _youtube(start: dt.date, end: dt.date, log: dict) -> list[pd.DataFrame]:
         cm = youtube.comments_daily(dates, COLLECT.blog_keyword, start, end)
         units = 100 * len(COLLECT.youtube_queries) + -(-len(ids) // 50) + c_calls
         log["youtube"] = {"ok": True, "videos": len(snap), "official": int((snap["channel_type"] == "official").sum()),
+                          "dropped_irrelevant": len(dropped), "dropped_examples": dropped[:3],
                           "comment_videos": len(top), "comments": len(dates),
                           "comments_in_period": int(cm["value"].sum()) if len(cm) else 0,
                           "units": units, "snapshot_date": dt.date.today().isoformat()}
-        print(f"  유튜브: 영상 {len(snap)}개, 댓글 {len(dates)}개 (약 {units} units)")
+        print(f"  유튜브: 영상 {len(snap)}개 (관련 없는 영상 {len(dropped)}개 제외), 댓글 {len(dates)}개 (약 {units} units)")
         return [cm]
     except Exception as e:  # noqa: BLE001
         log["youtube"] = {"ok": False, "error": _err(e)}
@@ -138,6 +203,7 @@ def collect(start: dt.date, end: dt.date) -> dict:
     log: dict = {"collected_at": dt.datetime.now().isoformat(timespec="seconds"),
                  "period": [start.isoformat(), end.isoformat()], "sources": {}}
     frames: list[pd.DataFrame] = []
+    prune_raw(dt.date.today())
     if env("NAVER_CLIENT_ID") and env("NAVER_CLIENT_SECRET"):
         log["naver_mode"] = naver.mode()
         frames += _naver(start, end, log["sources"])

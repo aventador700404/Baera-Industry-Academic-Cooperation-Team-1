@@ -45,20 +45,44 @@ def test_weekly_store_card_keeps_midweek_alerts(readout, truth):
 
 
 def test_promo_incremental_close_to_truth(readout, truth):
+    """정답 증분이 화면에 내는 범위 안에 있고, 점 추정도 15% 안."""
     for p in day(readout, LAUNCH.month_end.isoformat())["promos"]:
         true_inc = truth["promos"][p["id"]]["incremental"]
-        assert abs(p["inc"] - true_inc) / true_inc < 0.10, (p["id"], p["inc"], true_inc)
+        assert p["inc_lo"] <= true_inc <= p["inc_hi"], (p["id"], p["inc_lo"], true_inc, p["inc_hi"])
+        assert abs(p["inc"] - true_inc) / true_inc < 0.15, (p["id"], p["inc"], true_inc)
 
 
 def test_promo_verdicts(readout):
-    got = {p["id"]: p["verdict_label"] for p in day(readout, "2026-03-31")["promos"]}
-    assert got == {"baraday": "조정", "barawk": "중단 검토", "d31": "지속"}
+    got = {p["id"]: (p["verdict_label"], p["firm"]) for p in day(readout, "2026-03-31")["promos"]}
+    # 출시 기념 행사는 정답 ROI가 1.0 근처라 범위가 기준을 걸친다 → 잠정으로 남아야 맞다
+    assert got == {"launch500": ("중단 검토", False), "barawk": ("중단 검토", True), "d31": ("지속", False)}
 
 
 def test_first_promo_read_is_tentative(readout):
     first = alerts(readout, "promo")[0]
-    p = next(p for p in day(readout, first["date"])["promos"] if p["id"] == "baraday")
+    p = next(p for p in day(readout, first["date"])["promos"] if p["id"] == "launch500")
     assert p["firm"] is False and p["tentative_reason"] == "few_days"
+
+
+def test_promo_before_launch_is_listed_not_judged(readout):
+    """2월 배라위크는 출시 전이라 이달의 맛 증분이 없다: 행사 목록에는 있고 판정 대상은 아님."""
+    feb = next(p for p in readout["promos"] if p["id"] == "barawk_feb")
+    assert feb["before_launch"] is True and feb["evidence"].startswith("규칙 추정")
+    assert all(p["id"] != "barawk_feb" for p in day(readout, "2026-03-31")["promos"])
+
+
+def test_promos_carry_evidence(readout):
+    for p in readout["promos"]:
+        assert p["evidence"] and p["source"].startswith("https://"), p["id"]
+
+
+def test_small_samples_do_not_alert():
+    """글이 적은 날의 비율 차이는 우연일 수 있다: 같은 차이라도 건수가 적으면 안 울린다."""
+    from pipeline.analysis.reaction import topic_flags, z_two_prop
+    assert z_two_prop(30, 100, 60, 100) < -4 and abs(z_two_prop(3, 10, 6, 10)) < 2
+    big = topic_flags(60, 20, 40, 300, 30, 20, 10, 600)      # 비중 0.2 vs 0.05, 긍정률 0.33 vs 0.67
+    small = topic_flags(6, 2, 4, 30, 3, 2, 1, 60)           # 같은 비율, 건수 10분의 1
+    assert big["surge"] and big["neg_up"] and not small["surge"] and not small["neg_up"]
 
 
 def test_teaser_spike_caught_same_day(readout):

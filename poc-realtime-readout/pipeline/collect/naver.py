@@ -18,6 +18,7 @@ import datetime as dt
 import re
 from collections import Counter
 from collections.abc import Iterable
+from email.utils import parsedate_to_datetime
 
 import pandas as pd
 
@@ -25,12 +26,15 @@ from ._http import env, get_json, post_json
 
 BASES = {"hub": "https://naverapihub.apigw.ntruss.com", "openapi": "https://openapi.naver.com"}
 PATHS = {
-    "hub": {"datalab": "/search-trend/v1/search", "blog": "/search/v1/blog", "cafe": "/search/v1/cafearticle"},
+    "hub": {"datalab": "/search-trend/v1/search", "blog": "/search/v1/blog", "cafe": "/search/v1/cafearticle",
+            "news": "/search/v1/news"},
     "openapi": {"datalab": "/v1/datalab/search", "blog": "/v1/search/blog.json",
-                "cafe": "/v1/search/cafearticle.json"},
+                "cafe": "/v1/search/cafearticle.json", "news": "/v1/search/news.json"},
 }
-URL_ENV = {"datalab": "NAVER_DATALAB_URL", "blog": "NAVER_SEARCH_URL", "cafe": "NAVER_CAFE_URL"}
+URL_ENV = {"datalab": "NAVER_DATALAB_URL", "blog": "NAVER_SEARCH_URL", "cafe": "NAVER_CAFE_URL",
+           "news": "NAVER_NEWS_URL"}
 MAX_ITEMS = 1000  # 검색 API의 start 상한
+KST = dt.timezone(dt.timedelta(hours=9))
 
 POS = ("맛있", "존맛", "추천", "대박", "최고", "만족", "재구매", "꿀맛", "또 먹", "인생")
 NEG = ("별로", "실망", "비싸", "느끼", "아쉽", "최악", "맛없", "달기만", "너무 달", "품절")
@@ -39,7 +43,7 @@ NEG = ("별로", "실망", "비싸", "느끼", "아쉽", "최악", "맛없", "�
 TOPIC_WORDS = {
     "맛": ("맛", "달", "고소", "쫀득", "식감", "피스타치오", "초코"),
     "비교": ("원조", "비교", "두쫀쿠", "쫀득쿠키", "vs", "보다"),
-    "가격·할인": ("가격", "비싸", "할인", "쿠폰", "2+1", "1+1", "배라데이", "배라위크"),
+    "가격·할인": ("가격", "비싸", "할인", "쿠폰", "2+1", "1+1", "500원", "더블", "배라위크", "31데이"),
     "품절·재고": ("품절", "재고", "없어서", "못 샀", "다 팔", "솔드아웃"),
     "양·사이즈": ("사이즈", "양이", "하프갤론", "패밀리", "파인트", "쿼터"),
     "매장·서비스": ("직원", "대기", "줄이", "매장", "응대", "포장"),
@@ -101,6 +105,12 @@ def sentiment(text: str) -> int:
 
 
 def post_date(it: dict) -> dt.date | None:
+    """블로그는 postdate(YYYYMMDD), 뉴스는 pubDate(RFC 2822, +0900). 둘 다 한국 날짜로."""
+    if it.get("pubDate"):
+        try:
+            return parsedate_to_datetime(it["pubDate"]).astimezone(KST).date()
+        except (TypeError, ValueError):
+            return None
     try:
         return dt.datetime.strptime(it.get("postdate", ""), "%Y%m%d").date()
     except ValueError:
@@ -126,6 +136,9 @@ def parse_blog(items: list[dict], keyword: str, start: dt.date, end: dt.date) ->
     rows = []
     for d in sorted(cnt):
         rows.append((d, "naver_blog", keyword, "mentions", float(cnt[d])))
+        # 긍정·부정 건수도 남긴다. 알림은 비율의 평균이 아니라 구간 건수를 합쳐서 본다 (글이 적은 날의 0%·100% 방지)
+        rows += [(d, "naver_blog", keyword, "positive", float(pos[d])),
+                 (d, "naver_blog", keyword, "negative", float(neg[d]))]
         if pos[d] + neg[d] >= 3:  # 판단할 글이 너무 적으면 비움
             rows.append((d, "naver_blog", keyword, "positive_ratio", pos[d] / (pos[d] + neg[d])))
     return pd.DataFrame(rows, columns=["date", "source", "keyword", "metric", "value"])
@@ -162,23 +175,24 @@ def fetch_items(query: str, start: dt.date | None = None, max_items: int = MAX_I
         items += batch
         if len(batch) < 100:
             break
-        if sort == "date" and start and batch[-1].get("postdate", "99999999") < start.strftime("%Y%m%d"):
+        last = post_date(batch[-1])
+        if sort == "date" and start and last and last < start:
             break
     return items
 
 
 def collect_posts(queries: Iterable[str], start: dt.date, end: dt.date,
-                  max_items: int = MAX_ITEMS) -> tuple[list[dict], dict]:
+                  max_items: int = MAX_ITEMS, kind: str = "blog") -> tuple[list[dict], dict]:
     """검색어마다 정확도순 + 최신순으로 받아 링크 기준 중복 제거. 지난 기간은 최신순으로 닿지 않을 수 있어
     정확도순을 같이 쓴다. 돌려주는 stats는 데이터 출처 화면에 그대로 쓴다."""
     seen, items, fetched, calls = set(), [], 0, 0
     for q in queries:
         for sort in ("sim", "date"):
-            got = fetch_items(q, start, max_items, sort)
+            got = fetch_items(q, start, max_items, sort, kind)
             fetched += len(got)
             calls += max(1, -(-len(got) // 100))
             for it in got:
-                key = it.get("link") or (clean(it.get("title", "")), it.get("postdate"))
+                key = it.get("originallink") or it.get("link") or (clean(it.get("title", "")), post_date(it))
                 if key in seen:
                     continue
                 seen.add(key)
