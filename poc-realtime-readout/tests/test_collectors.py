@@ -12,13 +12,13 @@ D = dt.date.fromisoformat
 
 
 def test_datalab_parse():
-    df = naver.parse_datalab(json.loads((FIX / "naver_datalab.json").read_text()))
+    df = naver.parse_datalab(json.loads((FIX / "naver_datalab.json").read_text(encoding="utf-8")))
     assert set(df["keyword"]) == {"bra", "trend"}
     assert df[(df["keyword"] == "bra")]["value"].max() == 100.0
 
 
 def test_blog_parse_counts_and_sentiment():
-    items = json.loads((FIX / "naver_blog.json").read_text())["items"]
+    items = json.loads((FIX / "naver_blog.json").read_text(encoding="utf-8"))["items"]
     df = naver.parse_blog(items, "bra", D("2026-03-01"), D("2026-03-02"))
     m = df[df["metric"] == "mentions"].set_index("date")["value"]
     assert m[D("2026-03-01")] == 4 and m[D("2026-03-02")] == 1   # 범위 밖 글은 제외
@@ -28,7 +28,7 @@ def test_blog_parse_counts_and_sentiment():
 
 
 def test_topic_classification():
-    items = json.loads((FIX / "naver_blog.json").read_text())["items"]
+    items = json.loads((FIX / "naver_blog.json").read_text(encoding="utf-8"))["items"]
     df = naver.parse_topics(items, D("2026-03-01"), D("2026-03-02")).set_index(["date", "topic"])
     assert df.loc[(D("2026-03-01"), "맛"), "mentions"] >= 3
     assert df.loc[(D("2026-03-01"), "맛"), "negative"] >= 1          # '너무 달기만 해서 실망'
@@ -42,7 +42,7 @@ def test_sentiment_strips_tags():
 
 
 def test_youtube_parse_and_retention():
-    resp = json.loads((FIX / "youtube_videos.json").read_text())
+    resp = json.loads((FIX / "youtube_videos.json").read_text(encoding="utf-8"))
     df = youtube.parse_videos(resp, D("2026-03-05"), official_channel="UC_official")
     assert dict(zip(df["video_id"], df["channel_type"])) == {"v1": "official", "v2": "consumer"}
     assert list(df.columns) == ["date", "video_id", "channel_type", "title", "views", "published_at"]  # 원값만
@@ -134,13 +134,13 @@ def test_collect_runs_end_to_end_without_network(monkeypatch, tmp_path):
     monkeypatch.setattr(run, "load_env", lambda: None)
     sim = [_post(i, "20260305") for i in range(30)]
     monkeypatch.setattr(naver, "get_json", _fake_search({"sim": sim, "date": sim}))
-    monkeypatch.setattr(naver, "post_json", lambda *a, **k: json.loads((FIX / "naver_datalab.json").read_text()))
+    monkeypatch.setattr(naver, "post_json", lambda *a, **k: json.loads((FIX / "naver_datalab.json").read_text(encoding="utf-8")))
 
     def yt_get(url, what, params=None, headers=None):
         if url.endswith("/search"):
             return {"items": [{"id": {"videoId": "v1"}}, {"id": {"videoId": "v2"}}]}
         if url.endswith("/videos"):
-            return json.loads((FIX / "youtube_videos.json").read_text())
+            return json.loads((FIX / "youtube_videos.json").read_text(encoding="utf-8"))
         return {"items": [{"snippet": {"topLevelComment": {"snippet": {"publishedAt": "2026-03-03T00:00:00Z"}}}}]}
     monkeypatch.setattr(youtube, "get_json", yt_get)
 
@@ -154,7 +154,7 @@ def test_collect_runs_end_to_end_without_network(monkeypatch, tmp_path):
     assert (tmp_path / "reaction_topics_daily.csv").exists()
     yt = pd.read_csv(tmp_path / "youtube_videos_daily.csv")
     assert "published_at" in yt.columns and len(yt) == 2
-    assert json.loads((tmp_path / "_collect_log.json").read_text())["period"] == ["2026-02-01", "2026-03-31"]
+    assert json.loads((tmp_path / "_collect_log.json").read_text(encoding="utf-8"))["period"] == ["2026-02-01", "2026-03-31"]
 
 
 def test_one_api_failing_does_not_stop_the_others(monkeypatch, tmp_path):

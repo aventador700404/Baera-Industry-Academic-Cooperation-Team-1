@@ -26,13 +26,21 @@ class Tables:
         return name in self.frames and len(self.frames[name]) > 0
 
 
+def read_csv(path) -> pd.DataFrame:
+    """CSV 읽기. 엑셀에서 저장한 본사 파일은 BOM 붙은 utf-8이거나 cp949일 수 있어 둘 다 받는다."""
+    try:
+        return pd.read_csv(path, encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        return pd.read_csv(path, encoding="cp949")
+
+
 def load_all() -> Tables:
     frames, prov = {}, {}
     for name in TABLES:
         for tag, folder in SOURCES:
             path = folder / f"{name}.csv"
             if path.exists():
-                frames[name] = coerce(name, pd.read_csv(path))
+                frames[name] = coerce(name, read_csv(path))
                 prov[name] = tag
                 break
         else:
@@ -44,8 +52,8 @@ def load_all() -> Tables:
     api_path = COLLECTED / "reaction_daily.csv"
     mock_path = GENERATED / "reaction_daily.csv"
     if prov.get("reaction_daily") == "api" and mock_path.exists():
-        api = coerce("reaction_daily", pd.read_csv(api_path))
-        mock = coerce("reaction_daily", pd.read_csv(mock_path))
+        api = coerce("reaction_daily", read_csv(api_path))
+        mock = coerce("reaction_daily", read_csv(mock_path))
         got = set(zip(api["source"], api["keyword"], api["metric"]))
         keep = mock[[k not in got for k in zip(mock["source"], mock["keyword"], mock["metric"])]]
         if len(keep):

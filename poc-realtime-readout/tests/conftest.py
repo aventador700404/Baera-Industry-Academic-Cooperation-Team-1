@@ -13,7 +13,7 @@ def mock_data():
     if not (GENERATED / "_truth.json").exists() or not (GENERATED / "reaction_topics_daily.csv").exists():
         from pipeline.mock import generate
         generate.main()
-    return json.loads((GENERATED / "_truth.json").read_text())
+    return json.loads((GENERATED / "_truth.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="session")

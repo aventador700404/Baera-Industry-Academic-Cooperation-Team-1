@@ -328,7 +328,7 @@ def main() -> dict:
                    for k_, v in events.items()},
         "topic_events": {"맛_부정": ["2026-03-07", "2026-03-12"], "품절·재고": ["2026-03-09", "2026-03-14"]},
     }
-    (GENERATED / "_truth.json").write_text(json.dumps(truth, ensure_ascii=False, indent=2))
+    (GENERATED / "_truth.json").write_text(json.dumps(truth, ensure_ascii=False, indent=2), encoding="utf-8")
     return truth
 
 

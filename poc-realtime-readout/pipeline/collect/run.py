@@ -166,7 +166,7 @@ def collect(start: dt.date, end: dt.date) -> dict:
             log["sources"]["instagram"] = {"ok": False, "error": _err(e)}
             print(f"  !! 인스타: {_err(e)}")
 
-    LOG.write_text(json.dumps(log, ensure_ascii=False, indent=2, default=str))
+    LOG.write_text(json.dumps(log, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     print(f"→ {LOG.relative_to(LOG.parents[2])}")
     return log
 

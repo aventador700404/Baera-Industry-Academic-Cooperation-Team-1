@@ -47,7 +47,16 @@ def _clean(x):
 def collect_log() -> dict | None:
     """make collect 가 남긴 수집 기록 (데이터 출처 탭용). 수집한 적 없으면 None."""
     path = COLLECTED / "_collect_log.json"
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    if not path.exists():
+        return None
+    raw = path.read_bytes()
+    # 예전 Windows 실행분은 기본 인코딩(cp949)으로 저장됐다. 지금은 utf-8로만 쓴다
+    for enc in ("utf-8", "cp949"):
+        try:
+            return json.loads(raw.decode(enc))
+        except UnicodeDecodeError:
+            continue
+    return None
 
 
 def build(tables: Tables | None = None) -> dict:
@@ -238,7 +247,7 @@ def build(tables: Tables | None = None) -> dict:
 def main() -> None:
     out = build()
     WEB_OUT.parent.mkdir(parents=True, exist_ok=True)
-    WEB_OUT.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
+    WEB_OUT.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"→ {WEB_OUT.relative_to(WEB_OUT.parents[3])}  ({WEB_OUT.stat().st_size / 1024:.0f} KB, "
           f"{len(out['days'])}일, 알림 {len(out['alerts'])}건)")
     print("데이터 출처:", out["meta"]["provenance"])
