@@ -1,8 +1,9 @@
-"""모든 테이블 → 하루씩 '그 날까지의 데이터'로 판독 → web/public/data/readout.json.
+"""모든 테이블 → 하루씩 '그 날까지의 데이터'로 판독 → web/public/data/readout.local.json (배포용은 --publish).
 
 실시간 판독을 리플레이로 재현한다. 슬라이더의 하루 = 그 날 밤까지 쌓인 데이터를 다음 날 아침에 본 결과.
 계산 로직은 전부 여기(파이썬)에 있고 테스트된다. 웹은 JSON만 그린다.
-실행: python -m pipeline.build
+실행: python -m pipeline.build              로컬 화면용 (readout.local.json, 레포에 안 올라감 → git pull 충돌 없음)
+      python -m pipeline.build --publish    배포용 (readout.json, 커밋하면 Vercel에 반영)
 """
 from __future__ import annotations
 
@@ -15,7 +16,8 @@ import numpy as np
 from .analysis import alerts as alerts_mod
 from .analysis import cards, flavor, fmt, promo, reaction, stores
 from .analysis.baseline import estimate_dow, fit_baseline
-from .config import (COLLECTED, HISTORY_START, LAUNCH, MILESTONES, RULES, WEB_OUT, asof_dates, assumptions_text,
+from .config import (COLLECTED, HISTORY_START, LAUNCH, MILESTONES, RULES, WEB_OUT, WEB_OUT_LOCAL, asof_dates,
+                     assumptions_text,
                      read_day, weekly_asofs)
 from .io import Tables, load_all, read_csv
 from .schema import TABLES
@@ -297,10 +299,12 @@ def build(tables: Tables | None = None) -> dict:
 
 
 def main() -> None:
+    import sys
+    target = WEB_OUT if "--publish" in sys.argv else WEB_OUT_LOCAL
     out = build()
-    WEB_OUT.parent.mkdir(parents=True, exist_ok=True)
-    WEB_OUT.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(f"→ {WEB_OUT.relative_to(WEB_OUT.parents[3])}  ({WEB_OUT.stat().st_size / 1024:.0f} KB, "
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"→ {target.relative_to(target.parents[3])}  ({target.stat().st_size / 1024:.0f} KB, "
           f"{len(out['days'])}일, 알림 {len(out['alerts'])}건)")
     print("데이터 출처:", out["meta"]["provenance"])
     for a in out["alerts"]:

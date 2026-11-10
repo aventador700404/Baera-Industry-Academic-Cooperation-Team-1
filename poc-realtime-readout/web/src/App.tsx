@@ -35,8 +35,13 @@ export default function App() {
   const theme = useThemeTick();
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}data/readout.json`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    // 로컬 빌드 결과(readout.local.json, 레포에 안 올라감)가 있으면 그걸, 없으면 배포용(readout.json)을 읽는다
+    const base = `${import.meta.env.BASE_URL}data/`;
+    const get = (name: string) => fetch(base + name).then((r) => {
+      if (!r.ok || !(r.headers.get("content-type") ?? "").includes("json")) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    });
+    get("readout.local.json").catch(() => get("readout.json"))
       .then((d: Readout) => {
         setData(d);
         const want = hashDate() ?? d.meta.milestones.find((m) => m.label.startsWith("1주"))?.date;

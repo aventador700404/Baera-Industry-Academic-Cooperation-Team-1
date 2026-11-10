@@ -1,7 +1,7 @@
 # 자주 쓰는 명령 모음. `make help`
 PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
-.PHONY: help setup mock collect check-apis build-data data live test dev web shoot clean
+.PHONY: help setup mock collect check-apis build-data publish data live test dev web shoot clean
 
 help:
 	@echo "make setup       파이썬 가상환경 + 웹 패키지 설치 (처음 한 번)"
@@ -31,6 +31,9 @@ check-apis:
 build-data:
 	$(PY) -m pipeline.build
 
+publish:  ## 배포용 readout.json 갱신 (커밋하면 Vercel 반영)
+	$(PY) -m pipeline.build --publish
+
 data: mock build-data
 
 live: mock collect build-data
@@ -41,7 +44,7 @@ test:
 dev: data
 	cd web && npm run dev
 
-web: build-data
+web: publish
 	cd web && npm run build
 
 shoot:

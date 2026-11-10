@@ -18,7 +18,8 @@ data/collected/youtube_comments_daily.csv
 data/collected/raw/youtube.csv
 data/collected/instagram_*.csv
 
-# 웹
+# 웹 (로컬 빌드 결과는 git pull 과 부딪히지 않게 레포에 안 올림)
+web/public/data/readout.local.json
 web/node_modules/
 web/dist/
 shots/

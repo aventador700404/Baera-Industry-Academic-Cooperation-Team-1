@@ -13,7 +13,8 @@ DATA = ROOT / "data"
 RAW = DATA / "raw"              # 본사 데이터: 같은 열 구조의 CSV를 넣으면 목 데이터 대신 쓴다
 COLLECTED = DATA / "collected"  # 공개 API 수집분 (make collect)
 GENERATED = DATA / "generated"  # 목 데이터 (make mock)
-WEB_OUT = ROOT / "web" / "public" / "data" / "readout.json"
+WEB_OUT = ROOT / "web" / "public" / "data" / "readout.json"              # 배포용 (레포에 올림, Vercel이 읽음)
+WEB_OUT_LOCAL = ROOT / "web" / "public" / "data" / "readout.local.json"  # 로컬 빌드 결과 (레포에 안 올림, 화면이 먼저 읽음)
 
 D = dt.date.fromisoformat
 

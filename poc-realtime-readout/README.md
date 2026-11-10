@@ -148,7 +148,10 @@ API 하나가 실패해도 나머지는 계속 모으고, 오류 문구에서는
 
 ### 4. 배포 화면(Vercel)에 반영
 
-Vercel은 파이썬을 돌리지 않고 `web/public/data/readout.json`만 읽는다. 수집·빌드 후 이 파일을 커밋해 올리면 반영된다.
+`python -m pipeline.build`는 로컬 화면용 `readout.local.json`을 만든다. 레포에 올라가지 않아서 `git pull`과 부딪히지 않는다.
+화면은 이 파일이 있으면 이걸, 없으면 배포용 `readout.json`을 읽는다.
+Vercel은 파이썬을 돌리지 않고 `web/public/data/readout.json`만 읽는다. 실데이터 화면을 배포하려면
+`python -m pipeline.build --publish`(또는 `make publish`)로 이 파일을 만든 뒤 커밋한다.
 유튜브 수치가 들어간 JSON은 30일 안에 다시 수집해 갱신한다.
 
 ## 화면
@@ -177,7 +180,7 @@ pipeline/            파이썬: 데이터 → 하루씩 모니터링·주간 판
   mock/generate.py   가정값 (공개 수치에 맞춤, 감지돼야 할 사건을 심어 둠, 정답은 _truth.json)
   collect/           네이버(API HUB 기본) 데이터랩·블로그·카페, 유튜브, 인스타 수집기 + 수집 기록
   analysis/          alerts(감지) · reaction · flavor · stores · promo · baseline · cards
-  build.py           슬라이더의 하루마다 계산 + 월요일 판독 카드 → web/public/data/readout.json
+  build.py           슬라이더의 하루마다 계산 + 월요일 판독 카드 → readout.local.json (--publish: readout.json)
 web/                 React + Vite + TypeScript + Chart.js. JSON만 읽어서 그린다 (정적 파일)
 tests/               pytest (네트워크 없이 수집 전 과정, 키 누출 방지 포함)
 docs/                ARCHITECTURE · DATA · CONTEXT, img/data-flow (구조도 원본 HTML 포함)
