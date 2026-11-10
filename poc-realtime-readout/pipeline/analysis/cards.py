@@ -83,9 +83,11 @@ def demand_card(d: dt.date, c: dict) -> dict:
         pos = r.get("positive_7d")
         ok = pos is not None and pos >= RULES.rerelease_positive and c["month_rank"] == 1
         return card("demand", "flavor", title, ("good", "재출시 후보") if ok else ("info", "재출시 보류"),
-                    f"월 판매 {c['month_rank']}위, 최근 7일 긍정률 {fmt.pct(pos)}" if pos is not None
-                    else f"월 판매 {c['month_rank']}위",
-                    [f"{L.launch.month}월 누적 {fmt.n(c['cum'])}개, 목표보다 일평균 {fmt.pct(c['month_avg'] / L.target_daily - 1)} 많음",
+                    f"판매 기간 맛 순위 {c['month_rank']}위, 최근 7일 긍정률 {fmt.pct(pos)}" if pos is not None
+                    else f"판매 기간 맛 순위 {c['month_rank']}위",
+                    # 이달의 맛 판매 기간 = 출시일 ~ 월말 (2/24 출시 '3월 이달의 맛'이면 2/24~3/31)
+                    [f"출시({fmt.md(L.launch)}) 후 누적 {fmt.n(c['cum'])}개, 목표보다 일평균 "
+                     f"{fmt.pct(abs(c['month_avg'] / L.target_daily - 1))} {'많음' if c['month_avg'] >= L.target_daily else '적음'}",
                      f"긍정률 {int(RULES.rerelease_positive * 100)}% 이상 유지 → 재출시 후보로 등록" if ok
                      else "재출시 기준 미달 → 보류", "반응이 식는 속도를 다음 이달의 맛 물량 계획에 반영"],
                     ["sales", "reaction"])

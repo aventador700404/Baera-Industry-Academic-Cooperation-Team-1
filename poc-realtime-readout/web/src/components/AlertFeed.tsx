@@ -5,8 +5,8 @@ import { Verdict } from "./bits";
 const MOD: Record<string, string> = { reaction: "신제품 반응", flavor: "맛별 판매", store: "매장 순위", promo: "판촉 효과" };
 
 // 오른쪽: 지금 가장 급한 것 + 알림 피드 (최신이 위)
-export function AlertFeed({ alerts, day }: { alerts: Alert[]; day: Day }) {
-  const shown = alerts.filter((a) => a.date <= day.date).slice().reverse();
+export function AlertFeed({ alerts, day, module }: { alerts: Alert[]; day: Day; module?: string }) {
+  const shown = alerts.filter((a) => a.date <= day.date && (!module || a.module === module)).slice().reverse();
   return (
     <aside className="side" aria-label="모니터링">
       <section className="panel">
@@ -14,7 +14,7 @@ export function AlertFeed({ alerts, day }: { alerts: Alert[]; day: Day }) {
         <Verdict c={day.monitor} note={MOD[day.monitor.module]} />
       </section>
       <section className="panel feed" aria-labelledby="feed-h">
-        <div className="panel-h"><h2 id="feed-h">알림</h2><span className="chip">{shown.length}</span></div>
+        <div className="panel-h"><h2 id="feed-h">{module ? `${MOD[module]} 알림` : "알림"}</h2><span className="chip">{shown.length}</span></div>
         {shown.length === 0 ? (
           <div className="empty">아직 알림이 없습니다.</div>
         ) : (

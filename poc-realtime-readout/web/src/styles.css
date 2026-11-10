@@ -57,7 +57,9 @@ h1, h2, h3 { margin: 0; text-wrap: balance }
 .tb-marks button.on small { color: var(--blue) }
 
 /* 핵심 지표 */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px }
+@media (max-width: 720px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+.kpis-wrap .h3 { margin-top: 0 }
 .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px }
 .kpi .k { font-size: 12px; color: var(--muted) }
 .kpi .v { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em }
@@ -100,10 +102,13 @@ h1, h2, h3 { margin: 0; text-wrap: balance }
 .lane-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12px; color: var(--ink-2); padding-left: 2px }
 .lane-h b { color: var(--ink); font-size: 12px; min-width: 52px }
 .chartbox { position: relative }
-.tl-scroll { overflow-x: auto; overscroll-behavior-x: contain }
-.tl-inner { min-width: 100% }
-.tl-inner .lane-h { position: sticky; left: 0; width: max-content; max-width: 100vw; background: var(--surface) }
-.chartbox.r { height: 150px } .chartbox.a { height: 80px } .chartbox.s { height: 170px }
+.tl-range { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -2px 0 10px; font-size: 12px }
+.tl-range button { font: inherit; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer }
+.tl-range button.on { background: var(--info-bg); border-color: transparent; color: var(--blue) }
+.tl-range input[type=date] { font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink) }
+.peak { margin-left: 6px; font-size: 11px; color: var(--muted); font-weight: 600 }
+/* 세 줄의 그림 영역 높이를 맞춘다: 맨 위는 알림 점 자리(18px), 맨 아래는 날짜 눈금 자리만큼 더 */
+.chartbox.r { height: 158px } .chartbox.a { height: 150px } .chartbox.s { height: 168px }
 .key { display: inline-flex; align-items: center; gap: 6px }
 .sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block }
 .sw.bar { height: 10px; width: 10px; border-radius: 2px }
@@ -179,3 +184,26 @@ footer { font-size: 11px; color: var(--muted); text-align: center; padding-top: 
   .trow { grid-template-columns: 62px minmax(0, 1fr) } .tval { grid-column: 2 }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
+
+/* 화면 탭: 개요 + 판독 4축 상세 */
+.tabs { display: flex; flex-wrap: wrap; gap: 6px }
+.tabs button { font: inherit; font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer }
+.tabs button.on { background: var(--ink); color: var(--surface); border-color: var(--ink) }
+/* 개요의 판독 4축 카드: 핵심만, 누르면 상세 탭 */
+.mods { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px }
+.mod { font: inherit; color: inherit; text-align: left; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; justify-items: start; cursor: pointer }
+.mod:hover { border-color: var(--muted) } .mod:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
+.mod.crit { border-left-color: var(--crit) } .mod.warn { border-left-color: var(--warn) } .mod.good { border-left-color: var(--good) }
+.mod-h { display: flex; justify-content: space-between; align-items: baseline; width: 100%; gap: 8px }
+.mod-title { font-weight: 800; font-size: 14px }
+.mod-head { font-weight: 700; font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
+.mod-metric { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums }
+.mod-more { font-size: 12px; font-weight: 700; color: var(--blue) }
+.detail .quad { display: block }
+.src { margin-right: 6px; font-size: 12px }
+@media (max-width: 1100px) { .mods { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+@media (max-width: 560px) { .mods { grid-template-columns: minmax(0, 1fr) } }
+
+/* 공개 자료 근거: 출시 전 행사는 참고용이라 흐리게 */
+table.compact tr.past td { color: var(--muted) }
+table.compact tr.past td.name { font-weight: 600 }

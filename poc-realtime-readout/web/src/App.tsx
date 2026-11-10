@@ -8,6 +8,8 @@ import { FlavorTable } from "./components/FlavorTable";
 import { StorePanel } from "./components/StorePanel";
 import { PromoPanel } from "./components/PromoPanel";
 import { AlertFeed } from "./components/AlertFeed";
+import { ModuleCards, TABS, type Tab } from "./components/ModuleCards";
+import { PublicEvidence } from "./components/PublicEvidence";
 
 const STEP_MS = 1300; // 재생 속도: 하루당
 
@@ -25,13 +27,27 @@ function useThemeTick() {
   return tick;
 }
 
-const hashDate = () => new URLSearchParams(location.hash.slice(1)).get("d");
+// 푸터: 어떤 테이블이 실제 수집값이고 어떤 게 예시인지
+const TABLE_KO: Record<string, string> = { sales_daily: "판매", store_master: "매장", promo_calendar: "행사 일정", reaction_daily: "SNS 반응",
+  reaction_topics_daily: "언급 주제", youtube_videos_daily: "유튜브", store_reaction_daily: "매장 반응", ad_daily: "광고" };
+function footNote(prov: Record<string, string>) {
+  const by = (p: string) => Object.keys(prov).filter((k) => prov[k] === p).map((k) => TABLE_KO[k] ?? k);
+  const api = [...by("공개 API"), ...by("공개 API + 목").map((t) => `${t}(일부 예시)`)], mock = by("목"), raw = by("본사 데이터");
+  if (!api.length && !raw.length) return "화면의 수치는 시연용 예시 데이터입니다.";
+  return [raw.length && `본사 데이터: ${raw.join("·")}`, api.length && `공개 API 실제 수집: ${api.join("·")}`,
+          mock.length && `예시 데이터: ${mock.join("·")}`].filter(Boolean).join(" · ");
+}
+
+const hashParam = (k: string) => new URLSearchParams(location.hash.slice(1)).get(k);
+const hashDate = () => hashParam("d");
+const TAB_MODULE: Record<Tab, string | undefined> = { overview: undefined, reaction: "reaction", flavor: "flavor", store: "store", promo: "promo" };
 
 export default function App() {
   const [data, setData] = useState<Readout | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [cur, setCur] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [tab, setTab] = useState<Tab>(() => (TABS.find((t) => t.key === hashParam("t"))?.key ?? "overview"));
   const theme = useThemeTick();
 
   useEffect(() => {
@@ -51,10 +67,18 @@ export default function App() {
       .catch((e) => setErr(String(e)));
   }, []);
 
+  const syncHash = useCallback((d: string, t: Tab) => {
+    history.replaceState(null, "", `#d=${d}${t === "overview" ? "" : `&t=${t}`}`);
+  }, []);
   const pick = useCallback((i: number) => {
     setCur(i);
-    if (data) history.replaceState(null, "", `#d=${data.days[i].date}`);
-  }, [data]);
+    if (data) syncHash(data.days[i].date, tab);
+  }, [data, tab, syncHash]);
+  const open = (t: Tab) => {
+    setTab(t);
+    if (data) syncHash(data.days[cur].date, t);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // 재생: 하루씩 앞으로. 끝에 닿으면 멈춤
   useEffect(() => {
@@ -78,20 +102,43 @@ export default function App() {
     <>
       <TopBar data={data} cur={cur} playing={playing} onPick={(i) => { setPlaying(false); pick(i); }} onPlay={togglePlay} />
       <div className="wrap">
-        <Kpis day={day} />
+        <nav className="tabs" aria-label="화면">
+          {TABS.map((t) => (
+            <button type="button" key={t.key} className={tab === t.key ? "on" : ""} aria-current={tab === t.key ? "page" : undefined}
+                    onClick={() => open(t.key)}>{t.label}</button>
+          ))}
+        </nav>
         <div className="layout">
-          <main className="main">
-            <Timeline data={data} day={day} theme={theme} />
-            <div className="quads">
-              <ReactionQuad day={day} />
-              <FlavorTable day={day} />
-              <StorePanel data={data} day={day} />
-              <PromoPanel data={data} day={day} />
-            </div>
-          </main>
-          <AlertFeed alerts={data.alerts} day={day} />
+          {tab === "overview" ? (
+            <main className="main">
+              <ModuleCards day={day} onOpen={open} />
+              <Timeline data={data} day={day} theme={theme} />
+              <div className="kpis-wrap">
+                <div className="h3">세부 지표 <span className="note">{day.date.slice(5).replace("-", "/")} 기준</span></div>
+                <Kpis day={day} />
+              </div>
+            </main>
+          ) : (
+            <main className="main detail">
+              {tab === "reaction" && <>
+                <ReactionQuad day={day} />
+                <Kpis day={day} only={["검색지수 (출시 전 한 달 대비)", "블로그 언급 (최근 7일)", "긍정률 (최근 7일)", "반응 대비 판매 (전환)"]} />
+              </>}
+              {tab === "flavor" && <>
+                <FlavorTable day={day} />
+                <Kpis day={day} only={["누적 판매", "첫 주 목표 대비 (맛 수요)"]} />
+              </>}
+              {tab === "store" && <StorePanel data={data} day={day} />}
+              {tab === "promo" && <>
+                <PromoPanel data={data} day={day} />
+                <PublicEvidence data={data} day={day} />
+                <Kpis day={day} only={["누적 판매", "광고 노출 (최근 7일)"]} />
+              </>}
+            </main>
+          )}
+          <AlertFeed alerts={data.alerts} day={day} module={TAB_MODULE[tab]} />
         </div>
-        <footer>SDIC × 넥스트페이먼츠 산학 PoC · 화면의 수치는 시연용 예시 데이터입니다.</footer>
+        <footer>SDIC × 넥스트페이먼츠 산학 PoC · {footNote(data.meta.provenance)}</footer>
       </div>
     </>
   );
