@@ -108,3 +108,18 @@ def test_no_future_data(readout):
 def test_json_has_no_nan(readout):
     text = json.dumps(readout, ensure_ascii=False, allow_nan=False)
     assert "NaN" not in text
+
+
+def test_youtube_top_for_a_period_collected_later():
+    """지나간 기간을 나중에 수집하면 그 날까지 올라온 영상만, 조회수는 수집일 기준으로 보여 준다."""
+    import pandas as pd
+    from pipeline.analysis import reaction
+    D = dt.date.fromisoformat
+    yt = pd.DataFrame([
+        {"date": D("2026-11-10"), "video_id": "a", "channel_type": "official", "title": "출시 영상", "views": 300,
+         "published_at": D("2026-02-26")},
+        {"date": D("2026-11-10"), "video_id": "b", "channel_type": "consumer", "title": "후기", "views": 900,
+         "published_at": D("2026-03-10")}])
+    out = reaction.youtube_top(yt, D("2026-03-05"))
+    assert out["asof"] == "2026-11-10" and [v["title"] for v in out["videos"]] == ["출시 영상"]
+    assert reaction.youtube_top(yt, D("2026-02-20")) is None

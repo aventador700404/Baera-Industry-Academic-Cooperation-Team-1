@@ -15,8 +15,8 @@ import numpy as np
 from .analysis import alerts as alerts_mod
 from .analysis import cards, flavor, fmt, promo, reaction, stores
 from .analysis.baseline import estimate_dow, fit_baseline
-from .config import (HISTORY_START, LAUNCH, MILESTONES, RULES, WEB_OUT, asof_dates, assumptions_text, read_day,
-                     weekly_asofs)
+from .config import (COLLECTED, HISTORY_START, LAUNCH, MILESTONES, RULES, WEB_OUT, asof_dates, assumptions_text,
+                     read_day, weekly_asofs)
 from .io import Tables, load_all
 from .schema import TABLES
 
@@ -42,6 +42,12 @@ def _clean(x):
     if isinstance(x, dt.date):
         return x.isoformat()
     return x
+
+
+def collect_log() -> dict | None:
+    """make collect 가 남긴 수집 기록 (데이터 출처 탭용). 수집한 적 없으면 None."""
+    path = COLLECTED / "_collect_log.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
 
 def build(tables: Tables | None = None) -> dict:
@@ -209,6 +215,7 @@ def build(tables: Tables | None = None) -> dict:
             "milestones": [{"label": lb, "date": d, "show": read_day(d) if is_read else d}
                            for lb, d, is_read in MILESTONES],
             "weekly_reads": [{"asof": w, "read": read_day(w)} for w in weekly_asofs()],
+            "collect": collect_log(),
         },
         "dates": dates,
         "launch_dates": dates_m,

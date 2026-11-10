@@ -108,7 +108,9 @@ class Tracker:
                            action="확산기 → 유지기. 이제는 판매가 따라오는지(전환)와 재구매 신호를 봄")
 
     def _trend(self, d: dt.date, i: int) -> None:
-        if i >= 21 and np.isfinite(self.trend[i]) and self.trend[i] <= RULES.trend_fade * self.trend[i - 21]:
+        # 3주 전 지수가 0이거나 비어 있으면 하락률을 못 셈 (실데이터는 0이 나올 수 있다)
+        if i >= 21 and np.isfinite(self.trend[i]) and np.isfinite(self.trend[i - 21]) and self.trend[i - 21] > 0 \
+                and self.trend[i] <= RULES.trend_fade * self.trend[i - 21]:
             self._emit(d, "trend_fade", None, module="reaction", tone="warn",
                        title=f"{self.labels['trend']} 3주 새 {fmt.pct(1 - self.trend[i] / self.trend[i - 21])} 하락",
                        detail=f"지수 {self.trend[i - 21]:.0f} → {self.trend[i]:.0f}. 유행 키워드에 기대는 메시지는 수명이 짧음",

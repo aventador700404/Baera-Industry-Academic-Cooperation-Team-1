@@ -1,5 +1,5 @@
 import type { Day } from "../types";
-import { fmt, pct } from "../format";
+import { fmt, md, pct } from "../format";
 import { Verdict } from "./bits";
 
 // 신제품 반응: 무엇을 말하나(주제·긍부정) + 어떤 콘텐츠가 끌었나 + 판매로 이어지나
@@ -28,7 +28,7 @@ export function ReactionQuad({ day }: { day: Day }) {
           ))}
         </div>
       )}
-      <h3 className="h3">어떤 콘텐츠가 끌었나 <span className="note">유튜브 조회수</span></h3>
+      <h3 className="h3">어떤 콘텐츠가 끌었나 <span className="note">유튜브 조회수{day.youtube && day.youtube.asof > day.date ? ` · ${md(day.youtube.asof)} 수집 기준` : ""}</span></h3>
       {!day.youtube ? <div className="empty">티저 공개 전</div> : (
         <div className="yt">
           {day.youtube.videos.slice(0, 3).map((y) => (

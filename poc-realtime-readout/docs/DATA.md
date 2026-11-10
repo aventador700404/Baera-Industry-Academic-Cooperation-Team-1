@@ -9,7 +9,7 @@
 | `promo_calendar` | promo_id, name, start, end, discount_rate, desc | 목 (배라데이·배라위크·31데이) | 본사 마케팅 캘린더, 점주 분담 약정 | 행사별 |
 | `reaction_daily` | date, source, keyword, metric, value | 목 (공개 API 형식) | 네이버 데이터랩·블로그 검색 | 매일 |
 | `reaction_topics_daily` | date, topic, mentions, positive, negative | 목 | 블로그·카페 요약문 주제 분류 (계정 연동 시 배달앱·플레이스 리뷰도) | 매일 |
-| `youtube_videos_daily` | date, video_id, channel_type, title, views | 목 | YouTube Data API 스냅샷 | 매일 (시간 단위 가능) |
+| `youtube_videos_daily` | date, video_id, channel_type, title, views, published_at | 목 | YouTube Data API 스냅샷 | 매일 (시간 단위 가능) |
 | `store_reaction_daily` | date, store_id, mentions | 목 | '배스킨라빈스 + 지점명' 블로그 검색 결과 수 | 매일 |
 | `ad_daily` | date, campaign, channel, impressions, clicks, spend | 목 (캠페인 4개 × 유튜브·인스타·네이버) | 퍼포먼스 대행사 리포트(노출·클릭·비용), 광고 계정 연동 | 매일 |
 
@@ -20,15 +20,21 @@
 
 | API | 무료 한도 | 지켜야 할 것 | 이 레포에서 |
 |---|---|---|---|
-| 네이버 데이터랩 검색어트렌드 | 월 5만 건 | 상대지수(0~100). 비교할 키워드는 한 요청에 묶음(최대 5그룹) | `bra`, `trend` 두 그룹을 한 요청으로 |
-| 네이버 검색(블로그) | API HUB 검색 합산 월 77.5만 건 | 본문이 아니라 요약만. 최신순 최대 1,000건 | 언급 수는 하한값. 감성·주제는 요약문 단어 사전 방식 |
-| YouTube Data API | 일 10,000 units (search 100 units) | **API 수치로 새 지표(좋아요율 등) 계산 금지, 30일 넘게 저장 금지** | 영상별 조회수 원값만. 알림도 원값 돌파(100만·300만 회) 기준. `prune()`이 30일 지난 행 삭제 |
+| 네이버 데이터랩 검색어트렌드 | 월 5만 건 | 상대지수(0~100). 비교할 키워드는 한 요청에 묶음(최대 5그룹) | `bra`, `trend` 두 그룹을 한 요청으로, 2025-11-01부터 일별 |
+| 네이버 검색(블로그) | API HUB 검색 합산 월 77.5만 건 | 본문이 아니라 요약만. 검색어당 최대 1,000건 | 검색어 3개 × 정확도순·최신순으로 받아 중복 제거, 신제품 글만 남김. 언급 수는 하한값 |
+| 네이버 검색(카페) | 위 검색 합산에 포함 | 작성일 필드가 없음 | 날짜별 집계 대신 검색 결과 전체 건수만 기록 |
+| YouTube Data API | 일 10,000 units (search 100, videos·comments 1) | **API 수치로 새 지표(좋아요율 등) 계산 금지, 30일 넘게 저장 금지** | 영상별 조회수 원값 + 게시일, 상위 영상 댓글은 본문 없이 작성일만 날짜별로 셈. `prune()`이 30일 지난 행 삭제 |
 | 인스타 Business Discovery | 무료 | 팀 비즈니스 계정 + 페이스북 페이지 + Meta 앱 필요. 상대 계정 인사이트(도달)는 불가 | 수집만 구현, 화면 반영은 다음 단계 |
 
-- **NAVER API HUB**: 2026-07-31부터 신규 신청은 HUB에서만. 기존 개발자센터 키는 HUB에서 못 쓴다(기존 앱은 2027-06-30까지 사용 가능).
-  HUB 엔드포인트·인증 방식은 확인 못 해서 `.env`의 `NAVER_DATALAB_URL`, `NAVER_SEARCH_URL`로 바꿀 수 있게 열어 뒀다. 결제수단 등록 필수 여부도 확인 필요.
-- **과거 기간의 한계**: 데이터랩은 2016년부터 과거 추이를 받을 수 있어 3월 출시도 실제 값으로 채울 수 있다.
-  블로그는 최신 1,000건까지라 3월 글에 닿지 않고, 유튜브는 과거 일별 조회수를 주지 않는다 → 이 둘은 **다음 이달의 맛부터 매일 쌓아야** 한다.
+- **NAVER API HUB** ([개요](https://guide.ncloud-docs.com/docs/apihub-overview), [API 가이드](https://api.ncloud-docs.com/docs/naver-api-hub-overview)):
+  2026-07-31부터 신규 신청은 HUB에서만. 주소 `naverapihub.apigw.ntruss.com`, 헤더 `X-NCP-APIGW-API-KEY-ID` / `X-NCP-APIGW-API-KEY`.
+  경로 블로그 `/search/v1/blog`, 카페 `/search/v1/cafearticle`, 검색어 트렌드 `/search-trend/v1/search`. 수집 코드 기본값이 HUB이고,
+  예전 개발자센터 키는 `.env`에 `NAVER_API_MODE=openapi`. 지금은 한시 무료이며 월 한도에 닿으면 차단(콘솔 '한도 및 알림'에서 더 낮게 설정 가능).
+- **과거 기간의 한계**: 데이터랩은 2016년부터 과거 추이를 받을 수 있어 실제 값으로 채운다.
+  블로그는 정확도순을 같이 써서 지난 글에 닿게 하지만 1,000건 상한 때문에 하한값이다. 유튜브는 과거 일별 조회수를 주지 않아
+  지나간 기간에는 '그 날까지 올라온 영상 + 수집일 기준 조회수'로 보여 주고, 날짜별 흐름은 댓글 작성일로 본다.
+- **수집 기록**: `make collect`는 `data/collected/_collect_log.json`에 소스별 성공 여부, 받은 건수, 기간, 호출 수를 남긴다.
+  하나가 실패해도 나머지는 계속 모으고, 오류 문구에서는 키를 지운다. 판독 JSON의 `meta.collect`로 들어가 데이터 출처 탭이 쓴다.
 - 배달앱(배민·쿠팡이츠·요기요), 네이버 플레이스 리뷰, 커뮤니티: 공식 API 없음, 약관상 자동 수집 금지 → 본사 계정 연동 경로로 제안.
 
 ## 목 데이터 (`pipeline/mock/generate.py`)

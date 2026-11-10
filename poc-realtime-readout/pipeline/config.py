@@ -104,8 +104,34 @@ class Rules:
     trend_fade: float = 0.6              # 업계 키워드가 3주 전의 이 비율 이하로 떨어지면 (40% 이상 하락)
 
 
+@dataclass(frozen=True)
+class Collect:
+    """공개 API 수집 범위. 키를 .env에 넣고 `make collect` 하면 이 설정대로 모은다.
+
+    지나간 기간을 지금 모으는 것이라 API마다 받을 수 있는 것이 다르다 (docs/DATA.md):
+    데이터랩은 과거 일별 그대로, 블로그는 검색어당 최대 1,000건(언급 수는 하한), 카페는 작성일이 없어
+    전체 건수만, 유튜브는 지금 시점 조회수 + 댓글 작성일.
+    """
+    start: dt.date = D("2025-11-01")       # 두쫀쿠 유행 시작 무렵
+    end: dt.date = D("2026-03-31")         # 두바이 출시 달 말
+    # 블로그: 여러 검색어 × (정확도순, 최신순)으로 모아 중복 제거. 그중 신제품 이야기인 글만 쓴다
+    blog_queries: tuple = ("두바이에서 온 엄마는 외계인", "배라 두바이", "배스킨라빈스 두바이")
+    blog_keyword: str = "bra"
+    must_have: tuple = ("두바이",)                              # 글에 꼭 있어야 하는 말
+    any_of: tuple = ("배스킨", "배라", "엄마는 외계인", "베라")  # 이 중 하나는 있어야 함
+    cafe_queries: tuple = ("두바이에서 온 엄마는 외계인", "배라 두바이")
+    # 유튜브: 출시 전후 올라온 영상 + 상위 영상의 댓글 작성일
+    youtube_queries: tuple = ("배스킨라빈스 두바이", "두바이에서 온 엄마는 외계인")
+    youtube_after: dt.date = D("2026-02-15")
+    youtube_max_videos: int = 25           # 검색어당
+    comment_videos: int = 10               # 댓글을 모을 상위 영상 수
+    comment_pages: int = 5                 # 영상당 최대 페이지 (100개씩)
+    official_channel_hint: tuple = ("배스킨라빈스", "baskin")  # 공식 채널 ID가 없을 때 채널명으로 판별
+
+
 LAUNCH = Launch()
 RULES = Rules()
+COLLECT = Collect()
 
 
 def assumptions_text() -> str:

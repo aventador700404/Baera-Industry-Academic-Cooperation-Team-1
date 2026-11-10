@@ -109,10 +109,15 @@ def youtube_top(yt: pd.DataFrame | None, asof: dt.date, top: int = 5) -> dict | 
     """asof 시점 조회수 원값. 합계·비율·증가량 같은 파생 지표는 만들지 않는다 (YouTube API 정책)."""
     if yt is None or not len(yt):
         return None
-    snap = yt[yt["date"] <= asof].sort_values("date").groupby("video_id").tail(1)
+    snap, basis = yt[yt["date"] <= asof], asof
     if snap.empty:
-        return None
-    snap = snap.sort_values("views", ascending=False)
-    return {"asof": asof.isoformat(),
+        # 지나간 기간을 나중에 수집한 경우 (과거 일별 조회수는 API로 못 받음):
+        # 그 날까지 올라온 영상만 보여 주고, 조회수는 수집일 기준이라고 asof에 수집일을 적는다
+        snap = yt[yt["published_at"] <= asof]
+        if snap.empty:
+            return None
+        basis = snap["date"].max()
+    snap = snap.sort_values("date").groupby("video_id").tail(1).sort_values("views", ascending=False)
+    return {"asof": basis.isoformat(),
             "videos": [{"title": r.title, "channel_type": r.channel_type, "views": int(r.views)}
                        for r in snap.head(top).itertuples()]}

@@ -1,24 +1,36 @@
-"""네이버 데이터랩 검색어트렌드 + 블로그 검색.
+"""네이버 데이터랩 검색어트렌드 + 블로그·카페 검색.
 
-주의 (파트 1 리서치):
-- 2026-07-31부터 신규 신청은 NAVER API HUB에서만 된다. 기존 개발자센터 키는 HUB에서 못 쓴다
-  (기존 앱은 2027-06-30까지 그대로 사용 가능). HUB 엔드포인트·인증 헤더는 팀이 아직 확인 못 해서
-  NAVER_DATALAB_URL / NAVER_SEARCH_URL 로 바꿀 수 있게 열어 둔다.
-- 데이터랩은 상대지수(0~100)라 비교할 키워드 그룹은 한 요청에 같이 넣어야 한다 (최대 5그룹).
-- 블로그 검색은 본문이 아니라 요약(description)만 준다. 감성은 요약문 기준.
+키 발급처가 두 곳이라 둘 다 받는다 (파트 1 리서치, 네이버클라우드 문서):
+- NAVER API HUB (2026-07-31 이후 신규 발급은 여기만): naverapihub.apigw.ntruss.com,
+  헤더 X-NCP-APIGW-API-KEY-ID / X-NCP-APIGW-API-KEY. 한시 무료, 월 한도(검색 77.5만·트렌드 5만)에 닿으면 차단.
+- 예전 개발자센터 키: openapi.naver.com, 헤더 X-Naver-Client-Id / Secret (2027-06-30까지).
+  .env 에 NAVER_API_MODE=openapi 를 넣으면 이쪽으로 부른다. 기본은 hub.
+
+그 밖에:
+- 데이터랩은 상대지수(0~100)라 비교할 키워드 그룹은 한 요청에 같이 넣는다 (최대 5그룹).
+- 블로그·카페 검색은 본문이 아니라 요약(description)만 준다. 감성은 요약문 기준.
+- 검색어당 최대 1,000건(start 1~1000). 그래서 언급 수는 하한값이다.
+- 카페글은 작성일 필드가 없다 → 날짜별 집계는 못 하고 전체 건수(total)만 기록한다.
 """
 from __future__ import annotations
 
 import datetime as dt
 import re
 from collections import Counter
+from collections.abc import Iterable
 
 import pandas as pd
 
 from ._http import env, get_json, post_json
 
-DATALAB_URL = "https://openapi.naver.com/v1/datalab/search"
-SEARCH_URL = "https://openapi.naver.com/v1/search/blog.json"
+BASES = {"hub": "https://naverapihub.apigw.ntruss.com", "openapi": "https://openapi.naver.com"}
+PATHS = {
+    "hub": {"datalab": "/search-trend/v1/search", "blog": "/search/v1/blog", "cafe": "/search/v1/cafearticle"},
+    "openapi": {"datalab": "/v1/datalab/search", "blog": "/v1/search/blog.json",
+                "cafe": "/v1/search/cafearticle.json"},
+}
+URL_ENV = {"datalab": "NAVER_DATALAB_URL", "blog": "NAVER_SEARCH_URL", "cafe": "NAVER_CAFE_URL"}
+MAX_ITEMS = 1000  # 검색 API의 start 상한
 
 POS = ("맛있", "존맛", "추천", "대박", "최고", "만족", "재구매", "꿀맛", "또 먹", "인생")
 NEG = ("별로", "실망", "비싸", "느끼", "아쉽", "최악", "맛없", "달기만", "너무 달", "품절")
@@ -34,13 +46,28 @@ TOPIC_WORDS = {
 }
 
 
+def mode() -> str:
+    m = (env("NAVER_API_MODE") or "hub").strip().lower()
+    if m not in BASES:
+        raise ValueError(f"NAVER_API_MODE={m!r}: hub 또는 openapi")
+    return m
+
+
+def url(kind: str) -> str:
+    """kind: datalab | blog | cafe. NAVER_*_URL 이 있으면 그 주소를 그대로 쓴다."""
+    return env(URL_ENV[kind]) or BASES[mode()] + PATHS[mode()][kind]
+
+
 def _headers() -> dict:
     cid, sec = env("NAVER_CLIENT_ID"), env("NAVER_CLIENT_SECRET")
     if not (cid and sec):
         raise KeyError("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 없음 (.env)")
+    if mode() == "hub":
+        return {"X-NCP-APIGW-API-KEY-ID": cid, "X-NCP-APIGW-API-KEY": sec}
     return {"X-Naver-Client-Id": cid, "X-Naver-Client-Secret": sec}
 
 
+# ---------------------------------------------------------------- 데이터랩
 def parse_datalab(resp: dict) -> pd.DataFrame:
     rows = []
     for res in resp.get("results", []):
@@ -53,30 +80,44 @@ def parse_datalab(resp: dict) -> pd.DataFrame:
 def datalab(start: dt.date, end: dt.date, groups: dict[str, list[str]]) -> pd.DataFrame:
     body = {
         "startDate": start.isoformat(), "endDate": end.isoformat(), "timeUnit": "date",
-        "keywordGroups": [{"groupName": k, "keywords": v} for k, v in list(groups.items())[:5]],
+        "keywordGroups": [{"groupName": k, "keywords": v[:20]} for k, v in list(groups.items())[:5]],
     }
-    url = env("NAVER_DATALAB_URL", DATALAB_URL)
-    return parse_datalab(post_json(url, "naver datalab", body, _headers()))
+    return parse_datalab(post_json(url("datalab"), "naver datalab", body, _headers()))
 
 
+# ---------------------------------------------------------------- 블로그·카페
 _TAG = re.compile(r"<[^>]+>")
+
+
+def clean(text: str) -> str:
+    return _TAG.sub("", text or "")
 
 
 def sentiment(text: str) -> int:
     """+1 긍정, −1 부정, 0 판단 안 함. 단어 사전 방식이라 시연용."""
-    t = _TAG.sub("", text)
+    t = clean(text)
     p, n = sum(w in t for w in POS), sum(w in t for w in NEG)
     return (p > n) - (n > p)
+
+
+def post_date(it: dict) -> dt.date | None:
+    try:
+        return dt.datetime.strptime(it.get("postdate", ""), "%Y%m%d").date()
+    except ValueError:
+        return None
+
+
+def relevant(it: dict, must_have: Iterable[str], any_of: Iterable[str]) -> bool:
+    """정확도순 결과에는 다른 이야기도 섞인다. 제목·요약에 신제품을 가리키는 말이 있는 글만 남긴다."""
+    t = clean(it.get("title", "") + " " + it.get("description", ""))
+    return all(w in t for w in must_have) and any(w in t for w in any_of)
 
 
 def parse_blog(items: list[dict], keyword: str, start: dt.date, end: dt.date) -> pd.DataFrame:
     cnt, pos, neg = Counter(), Counter(), Counter()
     for it in items:
-        try:
-            d = dt.datetime.strptime(it.get("postdate", ""), "%Y%m%d").date()
-        except ValueError:
-            continue
-        if not (start <= d <= end):
+        d = post_date(it)
+        if d is None or not (start <= d <= end):
             continue
         cnt[d] += 1
         s = sentiment(it.get("title", "") + " " + it.get("description", ""))
@@ -94,13 +135,10 @@ def parse_topics(items: list[dict], start: dt.date, end: dt.date) -> pd.DataFram
     """reaction_topics_daily 형식: 날짜 x 주제별 언급·긍정·부정. 감성 판단이 안 되는 글은 언급만 센다."""
     cnt: Counter = Counter()
     for it in items:
-        try:
-            d = dt.datetime.strptime(it.get("postdate", ""), "%Y%m%d").date()
-        except ValueError:
+        d = post_date(it)
+        if d is None or not (start <= d <= end):
             continue
-        if not (start <= d <= end):
-            continue
-        text = _TAG.sub("", it.get("title", "") + " " + it.get("description", ""))
+        text = clean(it.get("title", "") + " " + it.get("description", ""))
         s = sentiment(text)
         for topic, words in TOPIC_WORDS.items():
             if any(w in text for w in words):
@@ -113,21 +151,54 @@ def parse_topics(items: list[dict], start: dt.date, end: dt.date) -> pd.DataFram
                         columns=["date", "topic", "mentions", "positive", "negative"])
 
 
-def fetch_items(query: str, start: dt.date, max_items: int = 1000) -> list[dict]:
-    url = env("NAVER_SEARCH_URL", SEARCH_URL)
+def fetch_items(query: str, start: dt.date | None = None, max_items: int = MAX_ITEMS, sort: str = "date",
+                kind: str = "blog") -> list[dict]:
+    """100건씩 넘기며 최대 max_items(API 상한 1,000). 최신순은 start보다 오래된 글이 나오면 멈춘다."""
     items: list[dict] = []
-    for s in range(1, max_items + 1, 100):
-        r = get_json(url, "naver blog", {"query": query, "display": 100, "start": s, "sort": "date"}, _headers())
+    for s in range(1, min(max_items, MAX_ITEMS) + 1, 100):
+        r = get_json(url(kind), f"naver {kind}", {"query": query, "display": 100, "start": s, "sort": sort},
+                     _headers())
         batch = r.get("items", [])
         items += batch
-        if len(batch) < 100 or batch[-1].get("postdate", "99999999") < start.strftime("%Y%m%d"):
+        if len(batch) < 100:
+            break
+        if sort == "date" and start and batch[-1].get("postdate", "99999999") < start.strftime("%Y%m%d"):
             break
     return items
 
 
-def blog(query: str, keyword: str, start: dt.date, end: dt.date, max_items: int = 1000) -> pd.DataFrame:
+def collect_posts(queries: Iterable[str], start: dt.date, end: dt.date,
+                  max_items: int = MAX_ITEMS) -> tuple[list[dict], dict]:
+    """검색어마다 정확도순 + 최신순으로 받아 링크 기준 중복 제거. 지난 기간은 최신순으로 닿지 않을 수 있어
+    정확도순을 같이 쓴다. 돌려주는 stats는 데이터 출처 화면에 그대로 쓴다."""
+    seen, items, fetched, calls = set(), [], 0, 0
+    for q in queries:
+        for sort in ("sim", "date"):
+            got = fetch_items(q, start, max_items, sort)
+            fetched += len(got)
+            calls += max(1, -(-len(got) // 100))
+            for it in got:
+                key = it.get("link") or (clean(it.get("title", "")), it.get("postdate"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                items.append(it)
+    dates = [d for d in map(post_date, items) if d and start <= d <= end]
+    stats = {"queries": list(queries), "fetched": fetched, "unique": len(items), "in_period": len(dates),
+             "first": min(dates).isoformat() if dates else None, "last": max(dates).isoformat() if dates else None,
+             "calls": calls}
+    return items, stats
+
+
+def blog(query: str, keyword: str, start: dt.date, end: dt.date, max_items: int = MAX_ITEMS) -> pd.DataFrame:
     """최신순으로 최대 1,000건(API 상한). 그 이상은 못 받으므로 언급 수는 하한값이다."""
     return parse_blog(fetch_items(query, start, max_items), keyword, start, end)
+
+
+def cafe_total(query: str) -> int:
+    """카페글은 작성일이 없어 날짜별로 못 센다. 검색 결과 전체 건수만 (1건만 요청)."""
+    r = get_json(url("cafe"), "naver cafe", {"query": query, "display": 1, "start": 1, "sort": "sim"}, _headers())
+    return int(r.get("total", 0))
 
 
 def store_mentions(store_names: dict[str, str], start: dt.date, end: dt.date) -> pd.DataFrame:

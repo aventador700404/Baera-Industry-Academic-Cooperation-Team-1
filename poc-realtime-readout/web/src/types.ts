@@ -74,6 +74,7 @@ export interface Readout {
     current_read: string;
     milestones: { label: string; date: string; show: string }[];
     weekly_reads: { asof: string; read: string }[];
+    collect: CollectLog | null;          // make collect 기록 (데이터 출처 탭)
   };
   dates: string[];
   launch_dates: string[];
@@ -85,4 +86,9 @@ export interface Readout {
   alerts: Alert[];
   days: Day[];
   schema: Record<string, string[]>;
+}
+
+export interface CollectLog {
+  collected_at: string; period: [string, string]; naver_mode?: "hub" | "openapi";
+  sources: Record<string, { ok: boolean; error?: string; [k: string]: unknown }>;
 }

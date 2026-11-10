@@ -292,8 +292,8 @@ def main() -> dict:
     for vid, ch, title, pub, vmax, tau in VIDEOS:
         for d in daterange(pub, L.month_end):
             age = (d - pub).days + 1
-            yv.append((d, vid, ch, title, int(round(vmax * (1 - math.exp(-age / tau)) * (1 + rrng.normal(0, 0.01))))))
-    yt = pd.DataFrame(yv, columns=["date", "video_id", "channel_type", "title", "views"])
+            yv.append((d, vid, ch, title, int(round(vmax * (1 - math.exp(-age / tau)) * (1 + rrng.normal(0, 0.01)))), pub))
+    yt = pd.DataFrame(yv, columns=["date", "video_id", "channel_type", "title", "views", "published_at"])
     yt["views"] = yt.groupby("video_id")["views"].cummax()
 
     # 광고 집행 (대행사 리포트 형식: 노출·클릭·비용)

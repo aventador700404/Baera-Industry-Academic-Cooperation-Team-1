@@ -18,6 +18,7 @@ TABLES: dict[str, dict[str, str]] = {
     "reaction_topics_daily": {"date": "date", "topic": "str", "mentions": "int", "positive": "int", "negative": "int"},
     "youtube_videos_daily": {
         "date": "date", "video_id": "str", "channel_type": "str", "title": "str", "views": "int",
+        "published_at": "date",
     },
     "store_reaction_daily": {"date": "date", "store_id": "str", "mentions": "int"},
     "ad_daily": {"date": "date", "campaign": "str", "channel": "str", "impressions": "int", "clicks": "int",
