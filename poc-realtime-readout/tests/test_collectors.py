@@ -174,3 +174,17 @@ def test_one_api_failing_does_not_stop_the_others(monkeypatch, tmp_path):
     log = run.collect(D("2026-03-01"), D("2026-03-31"))
     assert log["sources"]["naver_datalab"]["ok"] is False and "401" in log["sources"]["naver_datalab"]["error"]
     assert log["sources"]["naver_blog"]["ok"] is True
+
+
+def test_spelling_variants_are_searched_and_kept():
+    """배라·베라, 배스킨라빈스·베스킨라빈스·배스킨라벤스 같은 섞어 쓴 표기도 검색하고 거르지 않는다."""
+    from pipeline.config import COLLECT, LAUNCH
+    bra = " ".join(LAUNCH.keyword_groups["bra"])
+    for w in ("베라 두바이", "베스킨라빈스 두바이", "배스킨라벤스 두바이"):
+        assert w in bra
+    assert len(LAUNCH.keyword_groups["bra"]) <= 20 and len(LAUNCH.keyword_groups) <= 5   # 데이터랩 제한
+    assert "베라 두바이" in COLLECT.blog_queries
+    keep = lambda t: naver.relevant({"title": t, "description": ""}, COLLECT.must_have, COLLECT.any_of)
+    for t in ("베스킨라벤스 두바이 맛 후기", "베라 두바이 엄외 먹어봄", "배스킨 라빈스 두바이 신상", "두바이 엄마는 외계인 존맛"):
+        assert keep(t), t
+    assert not keep("두바이 여행 3박 4일 후기")
