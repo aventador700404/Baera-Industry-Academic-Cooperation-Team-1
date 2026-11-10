@@ -48,12 +48,18 @@ def load_all() -> Tables:
                 raise FileNotFoundError(
                     f"{name}.csv 가 data/raw, data/collected, data/generated 어디에도 없음. "
                     "먼저 `make mock` 실행")
+    # 유튜브 댓글 수는 정책상 레포에 안 올리는 별도 파일 (collect/run.py). 있으면 반응 데이터에 합친다
+    yt_path = COLLECTED / "youtube_comments_daily.csv"
+    if prov.get("reaction_daily") == "api" and yt_path.exists() and yt_path.stat().st_size > 1:
+        yt = read_csv(yt_path)
+        if len(yt):
+            frames["reaction_daily"] = pd.concat([frames["reaction_daily"], coerce("reaction_daily", yt)],
+                                                 ignore_index=True)
     # 반응 데이터는 API 수집분과 목을 섞을 수 있다. 수집된 (소스, 키워드)는 지표 전체를 API 것으로 쓴다
     # (예: API 블로그에 긍정·부정 건수가 없다고 목의 건수를 끼워 넣지 않는다)
-    api_path = COLLECTED / "reaction_daily.csv"
     mock_path = GENERATED / "reaction_daily.csv"
     if prov.get("reaction_daily") == "api" and mock_path.exists():
-        api = coerce("reaction_daily", read_csv(api_path))
+        api = frames["reaction_daily"]
         mock = coerce("reaction_daily", read_csv(mock_path))
         got = set(zip(api["source"], api["keyword"]))
         keep = mock[[k not in got for k in zip(mock["source"], mock["keyword"])]]

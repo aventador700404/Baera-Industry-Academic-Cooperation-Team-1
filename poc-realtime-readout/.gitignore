@@ -6,12 +6,17 @@
 __pycache__/
 .pytest_cache/
 
-# 데이터: 목·수집분은 다시 만들 수 있고, 본사 데이터는 레포에 올리지 않는다
+# 데이터: 목은 다시 만들 수 있고, 본사 데이터는 레포에 올리지 않는다
 data/generated/*
-data/collected/*
 data/raw/*
 !data/*/.gitkeep
 !data/raw/README.md
+# 공개 API 수집분은 원문까지 레포에 올린다 (키 없이도 같은 데이터로 재현).
+# 유튜브(조회수 스냅샷·댓글 수·원문)만 정책상 30일 보관이라 제외한다
+data/collected/youtube_videos_daily.csv
+data/collected/youtube_comments_daily.csv
+data/collected/raw/youtube.csv
+data/collected/instagram_*.csv
 
 # 웹
 web/node_modules/

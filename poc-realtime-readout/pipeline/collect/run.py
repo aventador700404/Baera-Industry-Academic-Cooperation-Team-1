@@ -23,34 +23,45 @@ LOG = COLLECTED / "_collect_log.json"
 
 
 # ---------------------------------------------------------------- 원문 보관 (raw 층)
+# 수집한 글·기사 원문을 CSV로 남기고 레포에 같이 올린다 (data/collected/raw/{소스}.csv, 엑셀에서 바로 열림).
+# 집계값이 왜 그렇게 나왔는지 글 단위로 다시 볼 수 있고, 키가 없는 팀원도 같은 데이터로 돌릴 수 있다.
+# 유튜브는 정책상 30일 넘게 저장할 수 없어 레포에 올리지 않고(.gitignore), 30일 지나면 지운다.
+NO_COMMIT = ("youtube",)
+
+
 def raw_dir():
     return COLLECTED / "raw"
 
 
 def save_raw(name: str, rows: list[dict], today: dt.date) -> int:
-    """수집한 원문을 그대로 남긴다: data/collected/raw/{name}_{수집일}.jsonl (깃에 안 올라감).
-    집계값이 왜 그렇게 나왔는지 나중에 글 단위로 다시 볼 수 있게. 보관 기간은 COLLECT.raw_retention_days."""
+    """data/collected/raw/{name}.csv 로 덮어쓴다 (이전 수집본은 깃 이력에 남는다). 수집일 열을 붙인다."""
     d = raw_dir()
     d.mkdir(parents=True, exist_ok=True)
-    path = d / f"{name}_{today.isoformat()}.jsonl"
-    path.write_text("".join(json.dumps(r, ensure_ascii=False, default=str) + "\n" for r in rows), encoding="utf-8")
-    return len(rows)
+    df = pd.DataFrame(rows)
+    df.insert(0, "collected_at", today.isoformat())
+    df.to_csv(d / f"{name}.csv", index=False, encoding="utf-8-sig")   # BOM: 엑셀에서 한글이 안 깨지게
+    return len(df)
 
 
 def prune_raw(today: dt.date) -> None:
-    for f in raw_dir().glob("*.jsonl") if raw_dir().exists() else []:
+    """정책상 보관 기간이 있는 원문(유튜브)만 수집일 기준으로 지운다."""
+    for name in NO_COMMIT:
+        f = raw_dir() / f"{name}.csv"
+        if not f.exists():
+            continue
         try:
-            day = dt.date.fromisoformat(f.stem.rsplit("_", 1)[-1])
-        except ValueError:
+            day = dt.date.fromisoformat(str(pd.read_csv(f, nrows=1, encoding="utf-8-sig")["collected_at"].iloc[0]))
+        except (KeyError, IndexError, ValueError):
             continue
         if (today - day).days > COLLECT.raw_retention_days:
             f.unlink()
 
 
 def _post_raw(it: dict, relevant: bool | None = None) -> dict:
+    """블로그·뉴스 한 건. 작성자 이름은 남기지 않는다 (레포에 올라가므로)."""
     row = {"date": naver.post_date(it), "title": naver.clean(it.get("title", "")),
            "description": naver.clean(it.get("description", "")),
-           "link": it.get("originallink") or it.get("link", ""), "author": it.get("bloggername", "")}
+           "link": it.get("originallink") or it.get("link", "")}
     if relevant is not None:
         row["relevant"] = relevant
     return row
@@ -215,7 +226,11 @@ def collect(start: dt.date, end: dt.date) -> dict:
         print("  -  유튜브: 키 없음 → 목 데이터 사용")
     frames = [f for f in frames if len(f)]
     if frames:
-        pd.concat(frames, ignore_index=True).to_csv(COLLECTED / "reaction_daily.csv", index=False)
+        # 유튜브 댓글 수는 정책상 30일 보관이라 레포에 올라가는 reaction_daily.csv 와 파일을 나눈다 (읽을 때 합침)
+        reac = pd.concat(frames, ignore_index=True)
+        yt = reac["source"] == "youtube"
+        reac[~yt].to_csv(COLLECTED / "reaction_daily.csv", index=False)
+        reac[yt].to_csv(COLLECTED / "youtube_comments_daily.csv", index=False)
 
     if env("IG_USER_ID") and env("IG_ACCESS_TOKEN") and competitors():
         try:

@@ -153,7 +153,9 @@ def test_collect_runs_end_to_end_without_network(monkeypatch, tmp_path):
     dumped = json.dumps(log)
     assert log["naver_mode"] == "hub" and not any(k in dumped for k in ("CID_X1", "SEC_X2", "YK_X3"))
     reac = pd.read_csv(tmp_path / "reaction_daily.csv")
-    assert {"naver_datalab", "naver_blog", "youtube"} <= set(reac["source"])
+    assert {"naver_datalab", "naver_blog"} <= set(reac["source"]) and "youtube" not in set(reac["source"])
+    assert set(pd.read_csv(tmp_path / "youtube_comments_daily.csv")["source"]) == {"youtube"}   # 레포에 안 올리는 파일
+    assert (tmp_path / "raw" / "blog.csv").exists() and (tmp_path / "raw" / "youtube.csv").exists()
     assert (tmp_path / "reaction_topics_daily.csv").exists()
     yt = pd.read_csv(tmp_path / "youtube_videos_daily.csv")
     assert "published_at" in yt.columns and len(yt) == 2
@@ -243,9 +245,13 @@ def test_news_matches_calendar_and_anchor(monkeypatch, tmp_path):
 
 
 def test_raw_posts_are_saved_and_pruned(monkeypatch, tmp_path):
+    """원문은 소스별 CSV 하나 (엑셀용 BOM). 유튜브만 30일 지나면 지운다."""
     from pipeline.collect import run
     monkeypatch.setattr(run, "COLLECTED", tmp_path)
-    run.save_raw("blog", [{"title": "배라 두바이"}], D("2026-01-01"))
-    run.save_raw("blog", [{"title": "배라 두바이"}], D("2026-03-01"))
+    run.save_raw("blog", [{"title": "배라 두바이", "link": "https://b/1"}], D("2026-01-01"))
+    run.save_raw("youtube", [{"title": "배라 두바이 쇼츠"}], D("2026-01-01"))
     run.prune_raw(D("2026-03-05"))
-    assert [f.name for f in (tmp_path / "raw").iterdir()] == ["blog_2026-03-01.jsonl"]
+    assert [f.name for f in (tmp_path / "raw").iterdir()] == ["blog.csv"]
+    raw = (tmp_path / "raw" / "blog.csv").read_bytes()
+    assert raw.startswith(b"\xef\xbb\xbf") and "배라 두바이".encode() in raw
+    assert list(pd.read_csv(tmp_path / "raw" / "blog.csv", encoding="utf-8-sig").columns) == ["collected_at", "title", "link"]

@@ -61,8 +61,10 @@ SDIC × 넥스트페이먼츠 산학 「AI 전환(AX)을 통한 배스킨라빈�
 
 ### 정제
 
-- **원문 보관**: 블로그·뉴스·유튜브 원문(제목·요약·링크·날짜)을 `data/collected/raw/{소스}_{수집일}.jsonl`에 남긴다. 30일 지나면 지운다.
-  집계값이 왜 그렇게 나왔는지 글 단위로 다시 볼 수 있다. 블로그 원문에는 거르기 결과(`relevant`)도 같이 적는다.
+- **원문 보관**: 블로그·뉴스 원문(제목·요약·링크·날짜)을 `data/collected/raw/blog.csv`, `news.csv`에 남기고 레포에 같이 올린다.
+  엑셀에서 바로 열리고(BOM 포함 UTF-8), 블로그에는 거르기 결과(`relevant`)도 같이 적는다. 작성자 이름은 남기지 않는다.
+  집계값이 왜 그렇게 나왔는지 글 단위로 다시 볼 수 있고, 키가 없는 팀원도 같은 데이터로 돌릴 수 있다.
+  유튜브 원문·조회수·댓글 수는 정책상 30일까지만 보관할 수 있어 레포에 올리지 않고 로컬에만 두며 30일 지나면 지운다.
 - **관련성**: 블로그는 '두바이' + 배라 표기, 유튜브는 제목·설명·태그·채널명에 배라 표기, 뉴스는 배라 표기가 있는 기사만.
 - **중복**: 블로그·뉴스는 원문 링크 기준, 같은 보도자료를 받아 쓴 기사는 행사 하나로 묶어 기사 수·매체 수를 따로 센다.
 - **작은 표본**: 긍정률·주제 비중은 구간 건수를 합쳐 비교하고, 건수가 적거나 차이가 우연 범위(z < 2)면 알림을 내지 않는다.
@@ -123,15 +125,31 @@ YOUTUBE_API_KEY=...        # Google Cloud 의 YouTube Data API v3 키
 
 화면은 http://127.0.0.1:5173. (`make dev`는 가정값으로 다시 빌드하므로, 실데이터를 본 뒤에는 `npm run dev`만 쓴다.)
 
-수집 결과는 `data/collected/`에 쌓이고(집계 CSV, 뉴스에서 뽑은 `news_events.csv`·`news_claims.csv`, 원문 `raw/`),
-무엇을 몇 건 받았는지와 실패 이유는 `data/collected/_collect_log.json`에 남는다.
+수집 결과는 `data/collected/`에 쌓인다. 무엇을 몇 건 받았는지와 실패 이유는 `_collect_log.json`에 남는다.
+
+| 파일 | 내용 | 레포 |
+|---|---|---|
+| `reaction_daily.csv` | 날짜별 검색지수(데이터랩)와 블로그 언급·긍정·부정 수 | 올림 |
+| `reaction_topics_daily.csv` | 날짜별 주제 언급·긍정·부정 (블로그) | 올림 |
+| `news_events.csv`, `news_claims.csv` | 뉴스에서 뽑은 행사와 발표 성과 | 올림 |
+| `raw/blog.csv`, `raw/news.csv` | 블로그·뉴스 원문 (한 줄 = 글 하나) | 올림 |
+| `_collect_log.json` | 수집 기록 (키 없음) | 올림 |
+| `youtube_videos_daily.csv`, `youtube_comments_daily.csv`, `raw/youtube.csv` | 유튜브 조회수·댓글 수·원문 | 안 올림 (정책상 30일) |
+
+수집한 뒤 레포에 올리기:
+
+```bash
+git add data/collected
+git commit -m "공개 API 수집 (YYYY-MM-DD)"
+git push
+```
 API 하나가 실패해도 나머지는 계속 모으고, 오류 문구에서는 키를 지운다. 빌드 끝에 찍히는 `데이터 출처:` 줄에서
 `reaction_daily: 공개 API + 목`처럼 바뀌었으면 실데이터가 들어간 것이다.
 
 ### 4. 배포 화면(Vercel)에 반영
 
 Vercel은 파이썬을 돌리지 않고 `web/public/data/readout.json`만 읽는다. 수집·빌드 후 이 파일을 커밋해 올리면 반영된다.
-수집 원본(`data/collected/*.csv`)은 올리지 않는다. 유튜브 수치가 들어간 JSON은 30일 안에 다시 수집해 갱신한다.
+유튜브 수치가 들어간 JSON은 30일 안에 다시 수집해 갱신한다.
 
 ## 화면
 

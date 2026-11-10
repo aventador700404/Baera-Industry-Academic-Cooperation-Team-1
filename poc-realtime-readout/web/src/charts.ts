@@ -44,17 +44,19 @@ function overlay(data: Readout, getDay: () => Day, role: Role): Plugin<"bar" | "
           ctx.fillText(p.name, x.getPixelForValue(i0) - h + 3, a.bottom - 4);
         }
       }
-      for (const m of data.markers) {
+      data.markers.forEach((m, k) => {
         const i = dates.indexOf(m.date);
-        if (i < 0) continue;
+        if (i < 0) return;
         const px = x.getPixelForValue(i);
         ctx.strokeStyle = css("--muted"); ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke(); ctx.setLineDash([]);
         if (role.top) {
-          ctx.fillStyle = css("--ink-2"); ctx.font = `11px ${css("--font")}`; ctx.textAlign = "right";
-          ctx.fillText(m.label, px - 4, a.top + 11);
+          // 예고(2/23)와 출시(2/24)처럼 붙어 있으면 첫 표시는 선 왼쪽, 다음 표시는 선 오른쪽에
+          const left = k === 0;
+          ctx.fillStyle = css("--ink-2"); ctx.font = `11px ${css("--font")}`; ctx.textAlign = left ? "right" : "left";
+          ctx.fillText(m.label, px + (left ? -4 : 4), a.top + 11);
         }
-      }
+      });
       ctx.restore();
     },
     afterDatasetsDraw(chart) {
@@ -118,8 +120,9 @@ function options(data: Readout, fmtY: (v: number) => string, role: Role, tip: (i
           callback: (_v, idx) => { const d = dates[idx]; return /-(01|08|15|22)$/.test(d) ? md(d) : ""; },
         },
       },
+      // 타임라인을 옆으로 넘길 때 기본 화면(오른쪽 끝 = 출시 전후)에서 눈금이 보이게 오른쪽에 둔다
       y: {
-        beginAtZero: true, grid: { color: line, lineWidth: 1 }, border: { display: false },
+        position: "right", beginAtZero: true, grid: { color: line, lineWidth: 1 }, border: { display: false },
         afterFit: (scale) => { scale.width = Y_WIDTH; },
         ticks: { color: ink2, font: { family: font, size: 10 }, maxTicksLimit: 4, callback: (v) => fmtY(Number(v)) },
       },
