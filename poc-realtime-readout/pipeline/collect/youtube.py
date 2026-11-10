@@ -149,6 +149,9 @@ def comments_daily(dates: Iterable[dt.date], keyword: str, start: dt.date, end: 
 
 
 def prune(df: pd.DataFrame, today: dt.date | None = None) -> pd.DataFrame:
+    """30일 지난 스냅샷을 지우고, 같은 날 두 번 수집했으면 그 날 영상별로 마지막 것만 남긴다."""
     today = today or dt.date.today()
     cutoff = today - dt.timedelta(days=RETENTION_DAYS)
-    return df[pd.to_datetime(df["date"]).dt.date > cutoff].reset_index(drop=True)
+    df = df.assign(date=pd.to_datetime(df["date"]).dt.date)
+    df = df[df["date"] > cutoff].drop_duplicates(subset=["date", "video_id"], keep="last")
+    return df.reset_index(drop=True)

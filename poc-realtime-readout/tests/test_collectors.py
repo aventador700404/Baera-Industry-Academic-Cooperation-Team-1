@@ -51,6 +51,8 @@ def test_youtube_parse_and_retention():
     old = df.assign(date=D("2026-01-01"))
     kept = youtube.prune(pd.concat([old, df]), today=D("2026-03-05"))
     assert set(kept["date"]) == {D("2026-03-05")}
+    again = youtube.prune(pd.concat([df, df.assign(views=df["views"] + 1)]), today=D("2026-03-05"))
+    assert len(again) == len(df) and (again["views"] == df["views"] + 1).all()   # 같은 날 다시 수집해도 중복 없음
 
 
 def test_instagram_parse():
