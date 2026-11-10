@@ -41,6 +41,24 @@ def test_sentiment_strips_tags():
     assert naver.sentiment("오늘 다녀옴") == 0
 
 
+def test_sentiment_fixes_seen_in_real_posts():
+    """실데이터 원문에서 잘못 잡히던 문장들."""
+    s = naver.sentiment
+    assert s("두바이에서 온 엄마는 외계인 비추천") == -1                 # '추천'이 들어 있어도 비추천
+    assert s("결론부터 말씀드리자면 비추입니다!") == -1
+    assert s("맛을 한꺼번에 느끼기는 어려웠고") == 0                     # 느끼다 ≠ 느끼하다
+    assert s("다시 한 번 느끼고 왔습니다") == 0 and s("초큼 느끼하고 그랬읍니다") == -1
+    assert s("지점별로 아무리 찾아봐도 두바이") == 0                     # '지점별로'의 '별로'
+    assert s("개인적으로 별로였습니다") == -1
+    assert s("배라 두바이 후기 #간식추천 #디저트추천") == 0              # 해시태그는 빼고 판단
+    assert s("솔직히 안 맛있어요") == -1 and s("맛있지는 않았어요") == -1
+    assert s("재구매 의사 없음") == -1 and s("재구매 각") == 1
+    assert s("너무 달달해서 좋았어요") == 1 and s("너무 달아서 반만 먹음") == -1
+    assert s("세상에서 제일 맛나는 두바이 또 먹고프네") == 1
+    assert s("이건 맛없을 수가 없는 조합") == 1 and s("부모님 둘다 맛이 없더라고요") == -1
+    assert s("불만족") == -1 and s("만족스러운 맛") == 1
+
+
 def test_youtube_parse_and_retention():
     resp = json.loads((FIX / "youtube_videos.json").read_text(encoding="utf-8"))
     df = youtube.parse_videos(resp, D("2026-03-05"), official_channel="UC_official", any_of=("배라", "배스킨"))
@@ -257,3 +275,22 @@ def test_raw_posts_are_saved_and_pruned(monkeypatch, tmp_path):
     raw = (tmp_path / "raw" / "blog.csv").read_bytes()
     assert raw.startswith(b"\xef\xbb\xbf") and "배라 두바이".encode() in raw
     assert list(pd.read_csv(tmp_path / "raw" / "blog.csv", encoding="utf-8-sig").columns) == ["collected_at", "title", "link"]
+
+
+def test_reparse_from_raw_without_api(monkeypatch, tmp_path):
+    """사전을 고친 뒤 원문으로 다시 계산: 블로그 행만 바뀌고 데이터랩은 그대로."""
+    from pipeline.collect import run
+    monkeypatch.setattr(run, "COLLECTED", tmp_path)
+    monkeypatch.setattr(run, "LOG", tmp_path / "_collect_log.json")
+    monkeypatch.setattr(naver, "get_json", lambda *a, **k: (_ for _ in ()).throw(AssertionError("API 호출")))
+    run.save_raw("blog", [
+        {"date": "2026-03-01", "title": "배라 두바이 비추천", "description": "", "link": "a", "relevant": True},
+        {"date": "2026-03-01", "title": "배라 두바이 존맛", "description": "", "link": "b", "relevant": True},
+        {"date": "2026-03-01", "title": "두바이 여행", "description": "", "link": "c", "relevant": False}], D("2026-03-02"))
+    pd.DataFrame([{"date": "2026-03-01", "source": "naver_datalab", "keyword": "bra", "metric": "search_index", "value": 7.0},
+                  {"date": "2026-03-01", "source": "naver_blog", "keyword": "bra", "metric": "positive", "value": 2.0}]
+                 ).to_csv(tmp_path / "reaction_daily.csv", index=False)
+    run.reparse(D("2026-03-01"), D("2026-03-31"))
+    r = pd.read_csv(tmp_path / "reaction_daily.csv").set_index(["source", "metric"])["value"]
+    assert r[("naver_datalab", "search_index")] == 7.0
+    assert (r[("naver_blog", "mentions")], r[("naver_blog", "positive")], r[("naver_blog", "negative")]) == (2.0, 1.0, 1.0)

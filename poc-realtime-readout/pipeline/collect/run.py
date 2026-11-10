@@ -2,6 +2,7 @@
 
 실행: python -m pipeline.collect.run            (기본: config.COLLECT 기간, 2025-11-01 ~ 2026-03-31)
       python -m pipeline.collect.run --check    (키마다 1회 호출만 해 보고 끝)
+      python -m pipeline.collect.run --reparse  (API 없이 저장된 블로그 원문으로 긍정·부정·주제만 다시 계산)
 
 API 하나가 실패해도 나머지는 계속 모은다. 무엇을 몇 건 모았는지, 실패했으면 왜인지는
 _collect_log.json 에 남고 화면의 '데이터 출처' 탭이 그대로 보여 준다. 키 값은 어디에도 남기지 않는다.
@@ -254,14 +255,42 @@ def collect(start: dt.date, end: dt.date) -> dict:
     return log
 
 
+def reparse(start: dt.date, end: dt.date) -> dict:
+    """API를 다시 부르지 않고 원문(raw/blog.csv)으로 블로그 언급·긍정·부정·주제를 다시 계산한다.
+    감성 사전이나 주제 사전을 고친 뒤 쓴다. 데이터랩·뉴스·유튜브 수치는 그대로 둔다."""
+    path = raw_dir() / "blog.csv"
+    if not path.exists():
+        raise SystemExit("data/collected/raw/blog.csv 가 없음. 먼저 python -m pipeline.collect.run")
+    raw = pd.read_csv(path, encoding="utf-8-sig").fillna("")
+    rel = raw[raw["relevant"].astype(str).str.lower() == "true"]
+    items = [{"title": r.title, "description": r.description, "postdate": str(r.date).replace("-", "")}
+             for r in rel.itertuples()]
+    blog = naver.parse_blog(items, COLLECT.blog_keyword, start, end)
+    naver.parse_topics(items, start, end).to_csv(COLLECTED / "reaction_topics_daily.csv", index=False)
+    reac_path = COLLECTED / "reaction_daily.csv"
+    old = pd.read_csv(reac_path) if reac_path.exists() else blog.iloc[0:0]
+    pd.concat([old[old["source"] != "naver_blog"], blog], ignore_index=True).to_csv(reac_path, index=False)
+    log = json.loads(LOG.read_text(encoding="utf-8")) if LOG.exists() else {"sources": {}}
+    m = blog[blog["metric"].isin(["mentions", "positive", "negative"])].groupby("metric")["value"].sum()
+    log.setdefault("sources", {}).setdefault("naver_blog", {})["reparsed_at"] = dt.datetime.now().isoformat(timespec="seconds")
+    LOG.write_text(json.dumps(log, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    print(f"  블로그 다시 계산: 글 {int(m.get('mentions', 0))}건 → 긍정 {int(m.get('positive', 0))}, "
+          f"부정 {int(m.get('negative', 0))} (원문 {len(rel)}건 기준, API 호출 없음)")
+    return log
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--reparse", action="store_true", help="API 없이 저장된 원문으로 블로그 지표만 다시 계산")
     ap.add_argument("--start", default=COLLECT.start.isoformat())
     ap.add_argument("--end", default=COLLECT.end.isoformat())
     a = ap.parse_args()
     if a.check:
         sys.exit(check())
+    if a.reparse:
+        reparse(dt.date.fromisoformat(a.start), dt.date.fromisoformat(a.end))
+        return
     collect(dt.date.fromisoformat(a.start), dt.date.fromisoformat(a.end))
 
 
