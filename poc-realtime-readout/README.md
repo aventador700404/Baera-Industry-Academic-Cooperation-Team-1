@@ -120,12 +120,16 @@ YOUTUBE_API_KEY=...        # Google Cloud 의 YouTube Data API v3 키
 
 ### 3. 키 점검 → 수집 → 화면
 
-| 할 일 | macOS / Linux | Windows |
+| 할 일 | macOS / Linux | Windows (PowerShell) |
 |---|---|---|
-| 키마다 한 번씩 호출해 보기 | `make check-apis` | `python -m pipeline.collect.run --check` |
-| 수집 + 판독 JSON 만들기 | `make live` | `python -m pipeline.mock.generate`<br>`python -m pipeline.collect.run`<br>`python -m pipeline.build` |
-| 화면 띄우기 | `make dev` 대신 `cd web && npm run dev` | `cd web; npm run dev` |
-| 테스트 | `make test` | `python -m pytest` |
+| 키마다 한 번씩 호출해 보기 | `make check-apis` | `.\run check` |
+| 수집 + 판독 JSON 만들기 | `make live` | `.\run all` |
+| 원문으로 블로그 지표만 다시 계산 (API 없이) | `python -m pipeline.collect.run --reparse` | `.\run reparse` |
+| 판독 JSON만 다시 만들기 | `make build-data` | `.\run build` |
+| 화면 띄우기 | `make dev` 대신 `cd web && npm run dev` | `.\run web` |
+| 테스트 | `make test` | `.\run test` |
+
+Windows의 `run.cmd`는 `.venv` 안의 파이썬을 바로 부르므로 가상환경을 켜지 않아도 되고, PowerShell 실행 정책에도 걸리지 않는다.
 
 화면은 http://127.0.0.1:5173. (`make dev`는 가정값으로 다시 빌드하므로, 실데이터를 본 뒤에는 `npm run dev`만 쓴다.)
 
